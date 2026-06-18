@@ -1,16 +1,23 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import logging
 from sqlmodel import Session, select
 
-from app.config import settings
+from app.config import settings, get_validation_issues
 from app.db import init_db, engine
 from app.models.schemas import Organization, User, Case
 from app.routers.endpoints import router as api_router
 from app.services.hashing_service import HashingService
 
+logger = logging.getLogger(__name__)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    issues = get_validation_issues()
+    for issue in issues:
+        logger.warning("Configuration: %s", issue)
+
     # 1. Initialize DB Tables
     init_db()
     

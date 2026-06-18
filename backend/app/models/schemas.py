@@ -289,7 +289,32 @@ class DocumentTrace(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 
-# 18. Reports
+# 18. Event Log Stream
+class EventLog(SQLModel, table=True):
+    __tablename__ = "event_logs"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=utc_now, index=True)
+    severity: str = Field(default="INFO", index=True)
+    event_type: str = Field(index=True)
+    message: str = Field(index=True)
+    source: str = Field(default="backend", index=True)
+    user_email: Optional[str] = Field(default=None, index=True)
+    session_id: Optional[str] = Field(default=None, index=True)
+    case_id: Optional[int] = Field(default=None, foreign_key="cases.id", index=True)
+    evidence_id: Optional[str] = Field(default=None, foreign_key="evidence.id", index=True)
+    payload: Dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+
+class PasswordResetToken(SQLModel, table=True):
+    __tablename__ = "password_reset_tokens"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    email: str = Field(index=True)
+    token_hash: str = Field(index=True, unique=True)
+    expires_at: datetime = Field(index=True)
+    used_at: Optional[datetime] = Field(default=None, index=True)
+    created_at: datetime = Field(default_factory=utc_now)
+
+# 19. Reports
 class Report(SQLModel, table=True):
     __tablename__ = "reports"
     id: Optional[str] = Field(default=None, primary_key=True)  # Unique Report Hash/UUID
@@ -323,3 +348,11 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     session_id: Optional[str] = None
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    password: str
+    confirm_password: str

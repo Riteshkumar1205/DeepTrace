@@ -47,3 +47,6 @@ coverage/
 .DS_Store
 Thumbs.db
 *.swp
+.env
+backend/.env
+frontend/.env

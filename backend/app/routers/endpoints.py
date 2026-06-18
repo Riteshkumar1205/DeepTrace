@@ -1,20 +1,30 @@
 import os
+import json
 import uuid
 import jwt
 import hashlib
+import secrets
 import time
+import asyncio
+import smtplib
+import ssl
+from email.message import EmailMessage
+from email.utils import formataddr
+from urllib.parse import urlencode
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Request
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Request, Query
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session, select
 from pydantic import BaseModel
+from fastapi.responses import StreamingResponse
 
 from app.db import get_db
 from app.config import settings
 from app.models.schemas import (
     User, UserCreate, UserLogin, Token, Organization, Case, CaseCreate,
     Evidence, Upload, Hashes, MetadataRecord, AuditLog, BlockchainRecord, UserSession, DocumentTrace,
+    EventLog, PasswordResetToken, ForgotPasswordRequest, ResetPasswordRequest,
     ProvenanceRecord, Report, ForensicsResult, DeepfakeResult, AIAttributionResult
 )
 from app.services.upload_service import UploadService
@@ -35,6 +45,7 @@ from app.services.reporting_service import ReportingService
 from app.services.forensics_summary import ForensicsSummaryService
 from app.services.trust_assessment import TrustAssessmentService
 from app.services.forensic_trace_service import ForensicTraceService
+from app.services.event_service import EventService
 
 router = APIRouter()
 
@@ -81,6 +92,47 @@ def get_current_session_id(token: str = Depends(oauth2_scheme)) -> str:
     email = payload.get("sub")
     return payload.get("sid") or (f"legacy:{email}" if email else "legacy:unknown")
 
+def _hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+def _generate_reset_token() -> tuple[str, str, datetime]:
+    token = secrets.token_urlsafe(32)
+    return token, _hash_reset_token(token), datetime.now(timezone.utc) + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+def _send_reset_email(recipient: str, reset_link: str) -> None:
+    if not settings.ENABLE_PASSWORD_RESET:
+        raise HTTPException(status_code=503, detail="Password reset is disabled by configuration.")
+    missing = [name for name, value in {
+        "SMTP_HOST": settings.SMTP_HOST,
+        "SMTP_USER": settings.SMTP_USER,
+        "SMTP_PASSWORD": settings.SMTP_PASSWORD,
+        "SMTP_FROM_EMAIL": settings.SMTP_FROM_EMAIL,
+    }.items() if not value]
+    if missing:
+        raise HTTPException(status_code=503, detail=f"Password reset email is unavailable. Missing: {', '.join(missing)}")
+
+    message = EmailMessage()
+    message["Subject"] = "DeepTrace password reset"
+    message["From"] = formataddr(("DeepTrace", settings.SMTP_FROM_EMAIL or settings.SMTP_USER or "noreply@localhost"))
+    message["To"] = recipient
+    message.set_content(
+        "A password reset was requested for your DeepTrace account.\n\n"
+        f"Reset link: {reset_link}\n\n"
+        "If you did not request this change, you can ignore this message."
+    )
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15) as smtp:
+        smtp.starttls(context=context)
+        if settings.SMTP_USER and settings.SMTP_PASSWORD:
+            smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+        smtp.send_message(message)
+
 # --- AUTH ENDPOINTS ---
 @router.post("/auth/register", response_model=Token)
 def register(user_in: UserCreate, db: Session = Depends(get_db), request: Request = None):
@@ -121,6 +173,16 @@ def register(user_in: UserCreate, db: Session = Depends(get_db), request: Reques
     db.commit()
 
     token = issue_access_token(user.email, session_id)
+    EventService.log(
+        db,
+        event_type="USER_REGISTERED",
+        message=f"User registered: {user.email}",
+        severity="INFO",
+        source="auth",
+        user_email=user.email,
+        session_id=session_id,
+        payload={"organization": org.name, "full_name": user.full_name},
+    )
     return Token(access_token=token, token_type="bearer", session_id=session_id)
 
 @router.post("/auth/login", response_model=Token)
@@ -141,7 +203,102 @@ def login(user_in: UserLogin, db: Session = Depends(get_db), request: Request = 
     db.commit()
 
     token = issue_access_token(user.email, session_id)
+    EventService.log(
+        db,
+        event_type="LOGIN_SUCCESS",
+        message=f"User logged in: {user.email}",
+        severity="INFO",
+        source="auth",
+        user_email=user.email,
+        session_id=session_id,
+    )
     return Token(access_token=token, token_type="bearer", session_id=session_id)
+
+@router.post("/auth/forgot-password")
+def forgot_password(payload: ForgotPasswordRequest, request: Request = None, db: Session = Depends(get_db)):
+    user = db.exec(select(User).where(User.email == payload.email)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found for the provided email.")
+
+    token, token_hash, expires_at = _generate_reset_token()
+    reset_token = PasswordResetToken(
+        user_id=user.id,
+        email=user.email,
+        token_hash=token_hash,
+        expires_at=expires_at,
+    )
+    db.add(reset_token)
+    db.commit()
+    db.refresh(reset_token)
+
+    reset_link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+    delivery_state = "not_configured"
+    delivery_error = None
+    try:
+        _send_reset_email(user.email, reset_link)
+        delivery_state = "sent"
+    except HTTPException as exc:
+        delivery_error = exc.detail
+        if settings.ENABLE_PASSWORD_RESET:
+            raise
+
+    EventService.log(
+        db,
+        event_type="PASSWORD_RESET_REQUESTED",
+        message=f"Password reset requested for {user.email}",
+        severity="WARNING" if delivery_state != "sent" else "INFO",
+        source="auth",
+        user_email=user.email,
+        payload={
+            "delivery_state": delivery_state,
+            "delivery_error": delivery_error,
+            "expires_at": expires_at.isoformat(),
+        },
+    )
+    return {
+        "status": "success" if delivery_state == "sent" else "delivery_unavailable",
+        "message": "Password reset email sent." if delivery_state == "sent" else "Password reset token generated but email delivery is unavailable.",
+        "delivery_state": delivery_state,
+        "reset_token": token if delivery_state != "sent" else None,
+        "expires_at": expires_at.isoformat(),
+    }
+
+@router.post("/auth/reset-password")
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    if payload.password != payload.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match.")
+    if len(payload.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
+
+    token_hash = _hash_reset_token(payload.token)
+    reset_record = db.exec(select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)).first()
+    if not reset_record:
+        raise HTTPException(status_code=400, detail="Reset token is invalid.")
+    if reset_record.used_at:
+        raise HTTPException(status_code=400, detail="Reset token has already been used.")
+    if _as_utc(reset_record.expires_at) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Reset token has expired.")
+
+    user = db.exec(select(User).where(User.id == reset_record.user_id)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Account not found.")
+
+    user.hashed_password = HashingService.hash_password(payload.password)
+    reset_record.used_at = datetime.now(timezone.utc)
+    db.add(user)
+    db.add(reset_record)
+    db.commit()
+
+    EventService.log(
+        db,
+        event_type="PASSWORD_RESET_COMPLETED",
+        message=f"Password reset completed for {user.email}",
+        severity="INFO",
+        source="auth",
+        user_email=user.email,
+        payload={"reset_token_id": reset_record.id},
+    )
+    return {"status": "success", "message": "Password has been reset successfully."}
 
 # --- CASES ENDPOINTS ---
 @router.post("/cases", response_model=Case)
@@ -159,7 +316,26 @@ def create_case(case_in: CaseCreate, current_user: User = Depends(get_current_us
     db.add(case)
     db.commit()
     db.refresh(case)
-    return case
+    EventService.log(
+        db,
+        event_type="CASE_CREATED",
+        message=f"Case created: {case.case_number}",
+        severity="INFO",
+        source="cases",
+        user_email=current_user.email,
+        case_id=case.id,
+        payload={"title": case.title, "status": case.status},
+    )
+    return {
+        "id": case.id,
+        "case_number": case.case_number,
+        "title": case.title,
+        "description": case.description,
+        "status": case.status,
+        "creator_id": case.creator_id,
+        "created_at": case.created_at,
+        "updated_at": case.updated_at,
+    }
 
 @router.get("/cases", response_model=List[Case])
 def get_cases(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -233,6 +409,23 @@ async def upload_evidence(
             upload=upload_rec,
             metadata=metadata_rec,
             raw_metadata=metadata_rec.raw_metadata if metadata_rec else {},
+        )
+        EventService.log(
+            db,
+            event_type="EVIDENCE_UPLOADED",
+            message=f"Evidence uploaded: {evidence.filename}",
+            severity="INFO" if upload_rec and upload_rec.integrity_valid else "WARNING",
+            source="upload",
+            user_email=current_user.email,
+            session_id=session_id,
+            case_id=case_id,
+            evidence_id=evidence.id,
+            payload={
+                "filename": evidence.filename,
+                "risk_level": evidence.risk_level,
+                "trust_score": evidence.trust_score,
+                "integrity_valid": upload_rec.integrity_valid if upload_rec else None,
+            },
         )
 
         return {
@@ -476,6 +669,18 @@ def analyze_evidence(
                 warnings=analysis_warnings,
                 errors=analysis_errors,
             )
+        EventService.log(
+            db,
+            event_type="ANALYSIS_COMPLETED",
+            message=f"Analysis completed for {evidence_id}",
+            severity="INFO",
+            source="analysis",
+            user_email=current_user.email,
+            session_id=session_id,
+            case_id=evidence.case_id,
+            evidence_id=evidence_id,
+            payload={"trust_score": evidence.trust_score, "risk_level": evidence.risk_level},
+        )
 
         return {
             "status": "completed",
@@ -645,6 +850,16 @@ def verify_c2pa(
     db.add(record)
     db.commit()
     db.refresh(record)
+    EventService.log(
+        db,
+        event_type="PROVENANCE_VERIFIED",
+        message=f"Provenance verified for {evidence_id}",
+        severity="INFO" if prov_dict["verification_status"] == "VERIFIED OWNER" else "WARNING",
+        source="provenance",
+        user_email=current_user.email,
+        evidence_id=evidence_id,
+        payload={"verification_status": prov_dict["verification_status"]},
+    )
 
     return {
         "id": record.id,
@@ -715,6 +930,16 @@ def get_forensic_report(
     db.add(report)
     db.commit()
     db.refresh(report)
+    EventService.log(
+        db,
+        event_type="REPORT_GENERATED",
+        message=f"Report generated for {evidence_id}",
+        severity="INFO",
+        source="report",
+        user_email=current_user.email,
+        evidence_id=evidence_id,
+        payload={"report_id": report.id, "filename": report_filename},
+    )
 
     # Return the PDF file as a downloadable attachment
     return FileResponse(
@@ -767,6 +992,16 @@ def register_on_blockchain(
         trust_score=evidence.trust_score if evidence else None,
     )
     trust_assessment = TrustAssessmentService.build(db, evidence_id)
+    EventService.log(
+        db,
+        event_type="BLOCKCHAIN_REGISTERED",
+        message=f"Blockchain registration completed for {evidence_id}",
+        severity="INFO",
+        source="blockchain",
+        user_email=current_user.email,
+        evidence_id=evidence_id,
+        payload={"block_number": record.block_number, "transaction_hash": record.transaction_hash},
+    )
 
     # Return dictionary to avoid detached session/lazy-loading issues
     return {
@@ -819,4 +1054,82 @@ def verify_ledger(
         trust_score=evidence.trust_score if evidence else None,
     )
 
+    EventService.log(
+        db,
+        event_type="BLOCKCHAIN_VERIFIED",
+        message=f"Ledger verification completed for {evidence_id}",
+        severity="INFO" if assessment.get("anchored") else "WARNING",
+        source="blockchain",
+        user_email=current_user.email,
+        evidence_id=evidence_id,
+        payload=assessment,
+    )
+
     return assessment
+
+@router.get("/events")
+def get_events(
+    current_user: User = Depends(get_current_user),
+    since_id: Optional[int] = Query(default=None, ge=1),
+    limit: int = Query(default=250, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    events = EventService.recent(db, since_id=since_id, limit=limit)
+    return [
+        {
+            "id": event.id,
+            "created_at": event.created_at.isoformat() if event.created_at else None,
+            "severity": event.severity,
+            "event_type": event.event_type,
+            "message": event.message,
+            "source": event.source,
+            "user_email": event.user_email,
+            "session_id": event.session_id,
+            "case_id": event.case_id,
+            "evidence_id": event.evidence_id,
+            "payload": event.payload,
+        }
+        for event in events
+    ]
+
+@router.get("/events/stream")
+def stream_events(
+    token: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing authentication token for event stream")
+
+    payload = get_token_payload(token)
+    email = payload.get("sub")
+    if not email:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+
+    user = db.exec(select(User).where(User.email == email)).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+
+    async def event_generator():
+        last_id = 0
+        while True:
+            events = EventService.recent(db, since_id=last_id, limit=100)
+            if events:
+                for event in events:
+                    last_id = max(last_id, event.id or last_id)
+                    payload = {
+                        "id": event.id,
+                        "created_at": event.created_at.isoformat() if event.created_at else None,
+                        "severity": event.severity,
+                        "event_type": event.event_type,
+                        "message": event.message,
+                        "source": event.source,
+                        "user_email": event.user_email,
+                        "session_id": event.session_id,
+                        "case_id": event.case_id,
+                        "evidence_id": event.evidence_id,
+                        "payload": event.payload,
+                    }
+                    yield f"data: {json.dumps(payload)}\n\n"
+            await asyncio.sleep(1.0)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")

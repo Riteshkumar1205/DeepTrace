@@ -32,6 +32,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { clearAuthState, setAuthState } from "@/lib/auth";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 const AUTH_TOKEN_KEY = "deeptrace_auth_token";
@@ -327,9 +329,11 @@ function Panel({
 }
 
 export default function Page() {
+  const router = useRouter();
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
   const [authError, setAuthError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
@@ -383,7 +387,15 @@ export default function Page() {
     }
     if (savedEmail) setAuthEmail(savedEmail);
     if (savedSession) setSessionId(savedSession);
+    setHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!authToken) {
+      router.replace("/login");
+    }
+  }, [authToken, hydrated, router]);
 
   useEffect(() => {
     authTokenRef.current = authToken;
@@ -693,6 +705,7 @@ export default function Page() {
       authTokenRef.current = token;
       setSessionId(returnedSession || null);
       setAuthEmail(loginForm.email);
+      setAuthState(token, loginForm.email, returnedSession || null);
       setStatusMessage(authMode === "login" ? "Signed in and connected to live backend data." : "Account created and session initialized.");
       setAuthError("");
       await loadAllDashboardData();
@@ -716,6 +729,7 @@ export default function Page() {
     setTimeline([]);
     setEvents([]);
     authTokenRef.current = null;
+    clearAuthState();
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(AUTH_TOKEN_KEY);
       window.localStorage.removeItem(AUTH_EMAIL_KEY);
@@ -915,6 +929,24 @@ export default function Page() {
     { key: "services", label: "Services", icon: Server },
     { key: "provenance", label: "Provenance", icon: Fingerprint },
   ];
+
+  if (!hydrated) {
+    return (
+      <div className="dashboard-shell">
+        <main className="dashboard-main">
+          <section className="panel">
+            <div className="panel-body">
+              <div className="empty-state">Loading authentication state...</div>
+            </div>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
+  if (!authToken) {
+    return null;
+  }
 
   if (!authToken) {
     return (

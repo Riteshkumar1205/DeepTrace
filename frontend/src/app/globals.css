@@ -438,6 +438,27 @@ a {
   background: rgba(10, 15, 26, 0.95);
 }
 
+.input-icon {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid var(--border-2);
+  border-radius: 0.75rem;
+  padding: 0 0.8rem;
+  background: rgba(10, 15, 26, 0.95);
+}
+
+.input-icon .input {
+  border: 0;
+  background: transparent;
+  padding-left: 0;
+}
+
+.input-icon svg {
+  color: var(--muted2);
+  flex: none;
+}
+
 .input:focus {
   outline: none;
   border-color: rgba(59, 130, 246, 0.8);
@@ -494,6 +515,23 @@ a {
   border-color: rgba(239, 68, 68, 0.35);
   color: #fecaca;
   background: rgba(69, 10, 10, 0.4);
+}
+
+.auth-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  color: var(--muted2);
+  font-size: 0.85rem;
+}
+
+.auth-links a {
+  color: var(--cyan);
+}
+
+.auth-links a:hover {
+  text-decoration: underline;
 }
 
 .auth-hero {
