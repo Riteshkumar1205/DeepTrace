@@ -31,7 +31,7 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 const AUTH_TOKEN_KEY = "deeptrace_auth_token";
@@ -369,6 +369,7 @@ export default function Page() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const selectedEvidenceRef = useRef<string | null>(null);
+  const selectedCaseRef = useRef<number | null>(null);
   const authTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -393,6 +394,10 @@ export default function Page() {
   }, [selectedEvidenceId]);
 
   useEffect(() => {
+    selectedCaseRef.current = selectedCaseId;
+  }, [selectedCaseId]);
+
+  useEffect(() => {
     if (!authToken) return;
     if (typeof window !== "undefined") {
       window.localStorage.setItem(AUTH_TOKEN_KEY, authToken);
@@ -401,7 +406,6 @@ export default function Page() {
     }
   }, [authToken, authEmail, sessionId]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!authToken) {
       setCases([]);
@@ -420,7 +424,6 @@ export default function Page() {
     return () => window.clearInterval(timer);
   }, [authToken]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!authToken) return;
     const currentCaseEvidence = selectedCaseId ? caseEvidence[selectedCaseId] ?? [] : [];
@@ -433,13 +436,11 @@ export default function Page() {
     }
   }, [authToken, selectedCaseId, caseEvidence, selectedEvidenceId]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!authToken || !selectedEvidenceId) return;
     void loadEvidenceDetails(selectedEvidenceId);
   }, [authToken, selectedEvidenceId]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!authToken) return;
     let closed = false;
@@ -536,7 +537,7 @@ export default function Page() {
     };
   }, [analysis?.blockchain, cases, caseEvidence, events, trustScoreBase]);
 
-  async function authedRequest(path: string, init: RequestInit = {}, service?: ServiceName) {
+  const authedRequest = useCallback(async (path: string, init: RequestInit = {}, service?: ServiceName) => {
     const started = performance.now();
     try {
       const headers = new Headers(init.headers ?? {});
@@ -589,9 +590,9 @@ export default function Page() {
       }
       throw error;
     }
-  }
+  }, []);
 
-  async function loadEvents() {
+  const loadEvents = useCallback(async () => {
     const { data } = await authedRequest("/events", {}, "events");
     const payload = Array.isArray(data) ? data : safeArray<Record<string, unknown>>((data as Record<string, unknown>)?.events ?? (data as Record<string, unknown>)?.items ?? data);
     const normalized = payload.map((item) => normalizeEvent(item));
@@ -600,9 +601,9 @@ export default function Page() {
       const merged = [...normalized, ...current.filter((item) => !normalized.some((entry) => entry.id === item.id))];
       return merged.filter((item) => !seen.has(item.id) || normalized.some((entry) => entry.id === item.id)).slice(0, 250);
     });
-  }
+  }, [authedRequest]);
 
-  async function loadCasesAndEvidence() {
+  const loadCasesAndEvidence = useCallback(async () => {
     setStatusMessage("Refreshing live cases and evidence from the backend.");
     const { data } = await authedRequest("/cases", {}, "cases");
     const fetchedCases = safeArray<CaseItem>(data).sort((a, b) => a.case_number.localeCompare(b.case_number));
@@ -620,16 +621,17 @@ export default function Page() {
     );
     const nextEvidence = Object.fromEntries(evidenceEntries);
     setCaseEvidence(nextEvidence);
-    if (!selectedCaseId && fetchedCases.length > 0) {
+    const currentSelectedCaseId = selectedCaseRef.current;
+    if (!currentSelectedCaseId && fetchedCases.length > 0) {
       setSelectedCaseId(fetchedCases[0].id);
     }
-    if (selectedCaseId && !fetchedCases.some((item) => item.id === selectedCaseId) && fetchedCases.length > 0) {
+    if (currentSelectedCaseId && !fetchedCases.some((item) => item.id === currentSelectedCaseId) && fetchedCases.length > 0) {
       setSelectedCaseId(fetchedCases[0].id);
     }
     setStatusMessage(`Loaded ${fetchedCases.length} cases and ${Object.values(nextEvidence).flat().length} evidence items.`);
-  }
+  }, [authedRequest]);
 
-  async function loadEvidenceDetails(evidenceId: string) {
+  const loadEvidenceDetails = useCallback(async (evidenceId: string) => {
     setBusyAction(`Loading ${evidenceId}`);
     try {
       const [analysisResp, timelineResp] = await Promise.all([
@@ -646,9 +648,9 @@ export default function Page() {
     } finally {
       setBusyAction(null);
     }
-  }
+  }, [authedRequest]);
 
-  async function loadAllDashboardData() {
+  const loadAllDashboardData = useCallback(async () => {
     try {
       await Promise.all([loadCasesAndEvidence(), loadEvents()]);
     } catch (error) {
@@ -657,7 +659,7 @@ export default function Page() {
         handleLogout();
       }
     }
-  }
+  }, [loadCasesAndEvidence, loadEvents]);
 
   async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
