@@ -1,0 +1,15 @@
+.git
+.pytest_cache
+.pytest-tmp
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv
+storage
+tests
+backend.stdout.log
+backend.stderr.log
+dev.db
+test_runtime.db

@@ -1,0 +1,49 @@
+# Python / backend
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Runtime / generated data
+*.db
+*.sqlite
+*.sqlite3
+*.log
+dev.db
+test_runtime.db
+
+# Backend temp/runtime folders
+backend/.pytest_cache/
+backend/.pytest-tmp/
+backend/pytest-temp-runtime/
+backend/__pycache__/
+backend/*.log
+backend/*.db
+backend/storage/
+
+# Frontend build/runtime
+frontend/node_modules/
+frontend/.next/
+frontend/.turbo/
+frontend/*.log
+frontend/tsconfig.tsbuildinfo
+
+# Project storage/runtime outputs
+storage/
+
+# Misc build output
+.dist/
+dist/
+build/
+coverage/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+*.swp

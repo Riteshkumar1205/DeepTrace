@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deeptrace-db
+  labels:
+    app: deeptrace-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: deeptrace-db
+  template:
+    metadata:
+      labels:
+        app: deeptrace-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        env:
+        - name: POSTGRES_USER
+          value: "deeptrace"
+        - name: POSTGRES_PASSWORD:
+          value: "deeptrace_secure_pass"
+        - name: POSTGRES_DB
+          value: "deeptrace"
+        ports:
+        - containerPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: deeptrace-db-srv
+spec:
+  ports:
+  - port: 5432
+  selector:
+    app: deeptrace-db
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deeptrace-backend
+  labels:
+    app: deeptrace-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: deeptrace-backend
+  template:
+    metadata:
+      labels:
+        app: deeptrace-backend
+    spec:
+      containers:
+      - name: backend
+        image: deeptrace-backend:latest
+        imagePullPolicy: Never
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://deeptrace:deeptrace_secure_pass@deeptrace-db-srv:5432/deeptrace"
+        ports:
+        - containerPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: deeptrace-backend-srv
+spec:
+  ports:
+  - port: 8000
+    targetPort: 8000
+  selector:
+    app: deeptrace-backend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deeptrace-frontend
+  labels:
+    app: deeptrace-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: deeptrace-frontend
+  template:
+    metadata:
+      labels:
+        app: deeptrace-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: deeptrace-frontend:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: deeptrace-frontend-srv
+spec:
+  ports:
+  - port: 3000
+    targetPort: 3000
+  selector:
+    app: deeptrace-frontend
