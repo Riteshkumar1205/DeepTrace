@@ -1,45 +1,72 @@
-﻿"use client";
+"use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import Image from "next/image";
-import { 
-  Shield, 
-  Upload, 
-  FileText, 
-  AlertTriangle, 
-  CheckCircle, 
-  Clock, 
-  Search, 
-  Database, 
-  ChevronRight, 
-  Binary, 
-  Cpu, 
-  Check, 
-  Activity, 
-  Layers, 
-  Compass, 
-  Plus, 
+import {
+  AlertTriangle,
+  Activity,
+  Clock3,
+  Database,
+  Download,
+  FileText,
+  FolderOpen,
+  Globe2,
+  Link2,
+  Loader2,
+  LockKeyhole,
+  LogOut,
+  Shield,
+  ShieldAlert,
+  ShieldCheck,
+  Sparkles,
+  Upload,
+  Users,
   RefreshCw,
-  Award
+  Server,
+  Radar,
+  Bot,
+  FileScan,
+  Fingerprint,
+  Brain,
+  ShieldHalf,
+  TerminalSquare,
+  TriangleAlert,
+  type LucideIcon,
 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
-// Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 const AUTH_TOKEN_KEY = "deeptrace_auth_token";
 const AUTH_EMAIL_KEY = "deeptrace_auth_email";
+const AUTH_SESSION_KEY = "deeptrace_auth_session";
 
-// Interfaces
-interface Case {
+type TabKey =
+  | "overview"
+  | "events"
+  | "threats"
+  | "cases"
+  | "deepfake"
+  | "mitre"
+  | "blockchain"
+  | "trust"
+  | "alerts"
+  | "services"
+  | "provenance";
+
+type Severity = "INFO" | "LOW" | "WARNING" | "HIGH" | "CRITICAL";
+
+type CaseItem = {
   id: number;
   case_number: string;
   title: string;
-  description: string;
-  status: string;
-  created_at: string;
-}
+  description?: string | null;
+  status?: string;
+  creator_id?: number | null;
+  created_at?: string;
+  updated_at?: string;
+};
 
-interface Evidence {
+type EvidenceItem = {
   id: string;
+  case_id: number;
   filename: string;
   file_type: string;
   mime_type: string;
@@ -47,2305 +74,1644 @@ interface Evidence {
   status: string;
   risk_level: string;
   trust_score: number;
-  created_at: string;
-}
+  created_at?: string;
+};
 
-interface Hashes {
-  md5: string;
-  sha256: string;
-  sha512: string;
-  p_hash?: string;
-  a_hash?: string;
-  d_hash?: string;
-  video_signatures?: Record<string, unknown>;
-  audio_signatures?: Record<string, unknown>;
-}
-
-interface MetadataRecord {
-  creator?: string;
-  software_used?: string;
-  created_datetime?: string;
-  modified_datetime?: string;
-  gps_latitude?: number;
-  gps_longitude?: number;
-  raw_metadata: Record<string, unknown>;
-}
-
-interface ForensicsOutputDetails {
-  reasons?: string[];
-  structure?: {
-    reasons?: string[];
-  };
-  statistics?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
-interface AuditLog {
+type AuditLogItem = {
   id: number;
   actor: string;
   operation: string;
   hash_value: string;
   result: string;
   timestamp: string;
-}
-
-interface ForensicsResult {
-  id: number;
-  engine_name: string;
-  tampered: boolean;
-  confidence: number;
-  output_details: ForensicsOutputDetails;
-}
-
-interface ForensicsSummary {
-  file_type: string;
-  tampered: boolean;
-  confidence_score: number;
-  verification_method: string;
-  supporting_evidence: string[];
-  modified_regions: string[];
-  risk_signal: string;
-}
-
-interface ProvenanceHistoryEntry {
-  action: string;
-  software: string;
-  [key: string]: unknown;
-}
-
-interface ProvenanceRecord {
-  has_manifest: boolean;
-  manifest_valid: boolean;
-  creator?: string;
-  device?: string;
-  editing_history: ProvenanceHistoryEntry[];
-  verification_status: string;
-  reasons: string[];
-  verification_method?: string;
-  ownership_classification?: string;
-  confidence_score?: number;
-  supporting_evidence?: string[];
-}
-
-interface ProvenanceAssessment {
-  has_manifest: boolean;
-  manifest_valid: boolean;
-  creator?: string;
-  device?: string;
-  editing_history: ProvenanceHistoryEntry[];
-  verification_status: string;
-  ownership_classification: string;
-  confidence_score: number;
-  verification_method: string;
-  supporting_evidence: string[];
-  reasons: string[];
-}
-
-interface DeepfakeExplainability {
-  facial_bounding_box?: [number, number, number, number];
-  eyebrow_asymmetry_ratio?: number;
-  noise_discontinuity_score?: number;
-  target_dataset_matches?: string[];
-  spliced_regions?: string[];
-  temporal_jitter_score?: number;
-  lip_sync_lag_ms?: number;
-  synthetic_robotics_index?: number;
-  harmonic_peaks_deviation?: number;
-  manipulated_frames_range?: [number, number];
-  [key: string]: unknown;
-}
-
-interface DeepfakeResult {
-  model_name: string;
-  deepfake_probability: number;
-  confidence: number;
-  heatmap_path?: string;
-  explainability: DeepfakeExplainability;
-}
-
-interface DeepfakeAssessment {
-  file_type: string;
-  model_name: string;
-  deepfake_probability: number;
-  confidence_score: number;
-  risk_level: string;
-  tampered: boolean;
-  verification_method: string;
-  supporting_evidence: string[];
-  heatmap_available: boolean;
-  heatmap_path?: string;
-  explainability: DeepfakeExplainability;
-}
-
-interface AIAttributionIndicators {
-  metadata_signals?: string[];
-  structural_cues?: string[];
-  generation_parameters?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
-interface AIAttributionResult {
-  predicted_source: string;
-  probability: number;
-  confidence: number;
-  indicators: AIAttributionIndicators;
-}
-
-interface BlockchainRecord {
-  id?: number;
-  evidence_id: string;
-  chain_name: string;
-  transaction_hash: string;
-  block_number: number;
-  registered_owner: string;
-  verification_status: string;
-  created_at: string;
-}
-
-interface BlockchainAssessment {
-  anchored: boolean;
-  verification_status: string;
-  ownership_classification: string;
-  confidence_score: number;
-  anchor_strength: number;
-  verification_method: string;
-  supporting_evidence: string[];
-  transaction_hash: string | null;
-  block_number: number | null;
-  registered_owner: string | null;
-  chain_name: string | null;
-  timestamp?: string | null;
-}
-
-interface TrustAssessment {
-  evidence_id: string;
-  trust_score: number;
-  risk_level: string;
-  confidence_score: number;
-  verdict: string;
-  trust_band: string;
-  stability: string;
-  supporting_evidence: string[];
-  recommendations: string[];
-  verification_methods: string[];
-  reasons: string[];
-  component_breakdown: Record<string, unknown>;
-  forensics_summary?: ForensicsSummary | null;
-  provenance_assessment?: ProvenanceAssessment | null;
-  deepfake_assessment?: DeepfakeAssessment | null;
-  blockchain_assessment?: BlockchainAssessment | null;
-  evidence_status?: string;
-  evidence_risk_level?: string;
-}
-
-function getErrorMessage(err: unknown) {
-  return err instanceof Error ? err.message : "Unknown error";
-}
-
-const mockCases: Case[] = [
-  { id: 1, case_number: "CASE-2026-0001", title: "Deepfake Audio Campaign Detection", description: "Suspicious political voice recording distributed on social channels.", status: "active", created_at: "2026-06-09T10:00:00Z" },
-  { id: 2, case_number: "CASE-2026-0002", title: "Corporate Espionage PDF Leak", description: "Integrity checking of leaked intellectual property documents.", status: "active", created_at: "2026-06-08T14:30:00Z" },
-  { id: 3, case_number: "CASE-2026-0003", title: "Phishing Campaign Domain Audit", description: "Investigating metadata alignment and threat intelligence signals for landing pages.", status: "closed", created_at: "2026-06-07T09:15:00Z" }
-];
-
-const mockEvidence: Record<number, Evidence[]> = {
-  1: [
-    { id: "e1", filename: "campaign_audio_voice.wav", file_type: "audio", mime_type: "audio/wav", size_bytes: 4194304, status: "completed", risk_level: "HIGH", trust_score: 35.0, created_at: "2026-06-09T10:15:00Z" },
-    { id: "e2", filename: "source_interview.mp3", file_type: "audio", mime_type: "audio/mpeg", size_bytes: 8388608, status: "completed", risk_level: "LOW", trust_score: 95.0, created_at: "2026-06-09T10:20:00Z" }
-  ],
-  2: [
-    { id: "e3", filename: "confidential_financials.pdf", file_type: "document", mime_type: "application/pdf", size_bytes: 1048576, status: "completed", risk_level: "LOW", trust_score: 90.0, created_at: "2026-06-08T15:00:00Z" },
-    { id: "e4", filename: "invoice_edited.docx", file_type: "document", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size_bytes: 256000, status: "completed", risk_level: "CRITICAL", trust_score: 15.0, created_at: "2026-06-08T16:10:00Z" }
-  ],
-  3: [
-    { id: "e5", filename: "phish_landing_screenshot.png", file_type: "image", mime_type: "image/png", size_bytes: 2048576, status: "completed", risk_level: "MEDIUM", trust_score: 60.0, created_at: "2026-06-07T09:30:00Z" }
-  ]
 };
 
-export default function Dashboard() {
-  // States
-  const [cases, setCases] = useState<Case[]>([]);
-  const [selectedCaseId, setSelectedCaseId] = useState<number | null>(null);
-  const [evidenceList, setEvidenceList] = useState<Evidence[]>([]);
-  const [selectedEvidence, setSelectedEvidence] = useState<Evidence | null>(null);
-  const [selectedHashes, setSelectedHashes] = useState<Hashes | null>(null);
-  const [selectedMeta, setSelectedMeta] = useState<MetadataRecord | null>(null);
-  const [timeline, setTimeline] = useState<AuditLog[]>([]);
-  const [forensics, setForensics] = useState<ForensicsResult[]>([]);
-  const [forensicsSummary, setForensicsSummary] = useState<ForensicsSummary | null>(null);
-  const [provenance, setProvenance] = useState<ProvenanceRecord | null>(null);
-  const [provenanceAssessment, setProvenanceAssessment] = useState<ProvenanceAssessment | null>(null);
-  const [deepfake, setDeepfake] = useState<DeepfakeResult | null>(null);
-  const [deepfakeAssessment, setDeepfakeAssessment] = useState<DeepfakeAssessment | null>(null);
-  const [aiAttribution, setAiAttribution] = useState<AIAttributionResult | null>(null);
-  const [blockchain, setBlockchain] = useState<BlockchainRecord | null>(null);
-  const [blockchainAssessment, setBlockchainAssessment] = useState<BlockchainAssessment | null>(null);
-  const [trustAssessment, setTrustAssessment] = useState<TrustAssessment | null>(null);
-  
-  // UI States
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [analysisStatus, setAnalysisStatus] = useState<string>("");
-  const [isServerOnline, setIsServerOnline] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showNewCaseModal, setShowNewCaseModal] = useState(false);
-  const [authEmail, setAuthEmail] = useState("analyst@deeptrace.ai");
-  const [authPassword, setAuthPassword] = useState("password");
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  const [authError, setAuthError] = useState("");
-  const [sessionStatus, setSessionStatus] = useState("Sandbox mode active");
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  
-  // New Case Form
-  const [newCaseTitle, setNewCaseTitle] = useState("");
-  const [newCaseDesc, setNewCaseDesc] = useState("");
+type EventItem = {
+  id: string;
+  created_at: string;
+  severity: Severity;
+  event_type: string;
+  message: string;
+  source: string;
+  user_email?: string | null;
+  session_id?: string | null;
+  case_id?: number | null;
+  evidence_id?: string | null;
+  payload?: Record<string, unknown> | null;
+};
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+type HealthItem = {
+  name: string;
+  status: "online" | "degraded" | "offline" | "unknown";
+  latencyMs?: number;
+  checkedAt?: string;
+  detail?: string;
+};
 
-  const fetchWithAuth = (url: string, init: RequestInit = {}) => {
-    const headers = new Headers(init.headers || {});
-    if (authToken) {
-      headers.set("Authorization", `Bearer ${authToken}`);
-    }
+type AnalysisBundle = {
+  evidence?: EvidenceItem | null;
+  upload?: Record<string, unknown> | null;
+  hashes?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
+  forensics?: Array<Record<string, unknown>>;
+  forensics_summary?: Record<string, unknown> | null;
+  provenance?: Record<string, unknown> | null;
+  provenance_assessment?: Record<string, unknown> | null;
+  deepfake?: Record<string, unknown> | null;
+  deepfake_assessment?: Record<string, unknown> | null;
+  ai_attribution?: Record<string, unknown> | null;
+  blockchain?: Record<string, unknown> | null;
+  blockchain_assessment?: Record<string, unknown> | null;
+  claim_assessment?: Record<string, unknown> | null;
+  audit_logs?: AuditLogItem[];
+  trust_assessment?: Record<string, unknown> | null;
+};
 
-    return fetch(url, {
-      ...init,
-      headers,
-    });
+type AuthMode = "login" | "register";
+
+type LoginForm = {
+  email: string;
+  password: string;
+  fullName: string;
+  organizationName: string;
+};
+
+type CreateCaseForm = {
+  title: string;
+  description: string;
+};
+
+type ServiceName = "auth" | "cases" | "evidence" | "events" | "analysis" | "provenance" | "blockchain" | "report";
+
+function apiPath(path: string) {
+  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+function safeString(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
+function safeNumber(value: unknown, fallback = 0) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function safeArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function normalizeEvent(raw: Record<string, unknown>): EventItem {
+  const payloadValue = raw.payload && typeof raw.payload === "object" ? (raw.payload as Record<string, unknown>) : null;
+  return {
+    id: safeString(raw.id ?? raw.event_id ?? `${raw.created_at ?? raw.timestamp ?? Date.now()}-${raw.event_type ?? raw.message ?? Math.random()}`),
+    created_at: safeString(raw.created_at ?? raw.timestamp ?? new Date().toISOString()),
+    severity: safeString(raw.severity ?? raw.level ?? "INFO", "INFO").toUpperCase() as Severity,
+    event_type: safeString(raw.event_type ?? raw.type ?? raw.operation ?? "event", "event"),
+    message: safeString(raw.message ?? raw.detail ?? raw.description ?? ""),
+    source: safeString(raw.source ?? raw.service ?? raw.actor ?? "backend", "backend"),
+    user_email: raw.user_email ? safeString(raw.user_email) : null,
+    session_id: raw.session_id ? safeString(raw.session_id) : null,
+    case_id: typeof raw.case_id === "number" ? raw.case_id : undefined,
+    evidence_id: raw.evidence_id ? safeString(raw.evidence_id) : null,
+    payload: payloadValue,
   };
-
-  const mockHashes: Record<string, Hashes> = {
-    e1: { md5: "c0182ac84589d38ef82cc8432a18ad29", sha256: "d5c805aa1104e12bb5f8cfbcf7640cfd76e4c7603db0248ad876a3a41cd243ba", sha512: "e7cf23...92a1", audio_signatures: { acoustic_fingerprints: ["c0182ac84589d3"], chroma_signature: "c0182ac84589" } },
-    e2: { md5: "898a1a38efcda928ea13a890a827c10b", sha256: "983bcda387dfca128a3f8cfca78e123984aefca3bda837dc8937efc78a10bcda", sha512: "f7aa3c...298c", audio_signatures: { acoustic_fingerprints: ["898a1a38efcda"], chroma_signature: "898a1a38efcd" } },
-    e3: { md5: "7da1f893cd3a89ee120a10bc78d9b1a0", sha256: "a0cfd7890bca382efdca78e1837bcda0937efcda789bdeac987fcda78bda0123", sha512: "71bcda...987e" },
-    e4: { md5: "ffea789cdba091e84fcad82cf89dc768", sha256: "47ac8e930cdabec78efcda8736152bcda879aefda789bcda279efcd893bca654", sha512: "a28ebd...54c7" },
-    e5: { md5: "a52c382bfda3809fe7a0cda8e79b1ad8", sha256: "8e9a2b8e3fcda782e38bca872bcda093ecda827aefda7382fcda72bca09cda81", sha512: "38bcda...72be", p_hash: "d182b8c983a48e72", a_hash: "ffffc3c3c3c3ffff", d_hash: "1e1e3e7c7c3c3c1e" }
-  };
-
-  const mockMetadata: Record<string, MetadataRecord> = {
-    e1: { creator: "Adobe Audition 2025", software_used: "Adobe Audition 2025", created_datetime: "2026-06-09T08:12:00Z", modified_datetime: "2026-06-09T09:40:00Z", raw_metadata: { sample_rate: 44100, channels: 2, codec: "pcm_s16le", duration_seconds: 45.2, editor_signature_detected: true } },
-    e2: { creator: "Zoom H1n Recorder", software_used: "H1n Firmware 1.0", created_datetime: "2026-06-09T07:30:00Z", raw_metadata: { sample_rate: 48000, channels: 1, codec: "mp3", duration_seconds: 600.5 } },
-    e3: { creator: "Acrobat Distiller 22.0", software_used: "Adobe PDF Library 22.0", created_datetime: "2026-06-08T11:00:00Z", modified_datetime: "2026-06-08T11:00:00Z", raw_metadata: { pdf_version: "1.6", page_count: 12, linearised: false } },
-    e4: { creator: "Microsoft Word", software_used: "Microsoft Office Word", created_datetime: "2026-06-08T09:12:00Z", modified_datetime: "2026-06-08T15:45:00Z", raw_metadata: { revision: 14, last_modified_by: "Unknown Extraterrestrial", embedded_executables_detected: true } },
-    e5: { creator: "Snagit 2024", software_used: "Snagit 2024 for Mac", created_datetime: "2026-06-07T08:00:00Z", raw_metadata: { format: "PNG", width: 1920, height: 1080 } }
-  };
-
-  const mockForensics: Record<string, ForensicsResult[]> = {
-    e1: [
-      { id: 1, engine_name: "Audio Spectrogram Forensics", tampered: true, confidence: 95.0, output_details: { reasons: ["Flat voice pitch contour detected (missing physiological micro-tremor)", "Acoustic frequency caps at 16000Hz (synthesis cutoff signature)"] } }
-    ],
-    e2: [
-      { id: 2, engine_name: "Audio Spectrogram Forensics", tampered: false, confidence: 98.0, output_details: { reasons: ["No acoustic, pitch centroid, or frequency anomalies detected"] } }
-    ],
-    e3: [
-      { id: 3, engine_name: "Document Structural Forensics", tampered: false, confidence: 95.0, output_details: { reasons: ["No active script tags or incremental revision anomalies found in PDF structure"] } }
-    ],
-    e4: [
-      { id: 4, engine_name: "Document Structural Forensics", tampered: true, confidence: 90.0, output_details: { reasons: ["Active Macro container detected in OOXML package: word/vbaProject.bin (Macro-phishing risk)"] } }
-    ],
-    e5: [
-      { id: 5, engine_name: "Image ELA", tampered: true, confidence: 85.0, output_details: { reasons: ["JPEG ELA compression level mismatch: high energy deviation found in central grid"] } },
-      { id: 6, engine_name: "Image NOISE", tampered: true, confidence: 78.0, output_details: { statistics: { mean_noise_variance: 4.8, anomaly_ratio: 0.52 } } },
-      { id: 7, engine_name: "Image CLONE", tampered: false, confidence: 95.0, output_details: {} }
-    ]
-  };
-
-  const mockProvenance: Record<string, ProvenanceRecord> = {
-    e1: { has_manifest: false, manifest_valid: false, creator: "Unknown Creator", editing_history: [], verification_status: "UNKNOWN OWNER", reasons: ["No APP11 / JUMBF content credentials located in raw bytes"] },
-    e2: { has_manifest: true, manifest_valid: true, creator: "Zoom Sound Device Authenticity CA", device: "Zoom H1n", editing_history: [{"action": "c2pa.signed", "software": "Zoom H1n Internal Cert Engine"}], verification_status: "VERIFIED OWNER", reasons: ["Acoustic signature block matches certificate authority root hashes"] },
-    e3: { has_manifest: true, manifest_valid: true, creator: "US Courts PDF Document Seal", device: "Acrobat DC Security", editing_history: [{"action": "c2pa.sealed", "software": "Acrobat DC Security"}], verification_status: "VERIFIED OWNER", reasons: ["Verified C2PA Content Credentials signature found in PDF dictionary"] },
-    e4: { has_manifest: false, manifest_valid: false, creator: "Unknown Creator", editing_history: [], verification_status: "UNKNOWN OWNER", reasons: ["No C2PA provenance manifest structures present in OOXML zip container"] },
-    e5: { has_manifest: true, manifest_valid: false, creator: "Adobe Photoshop Signature CA", device: "MacBook Pro M3", editing_history: [{"action": "c2pa.edited", "software": "Adobe Photoshop 2026"}, {"action": "c2pa.tampered", "software": "Unknown binary modifier tool"}], verification_status: "UNKNOWN OWNER", reasons: ["C2PA verification failed: file byte hash does not match signature manifest hashes"] }
-  };
-
-  const buildMockProvenanceAssessment = (evidenceId: string): ProvenanceAssessment | null => {
-    const record = mockProvenance[evidenceId];
-    if (!record) return null;
-
-    return {
-      has_manifest: record.has_manifest,
-      manifest_valid: record.manifest_valid,
-      creator: record.creator,
-      device: record.device,
-      editing_history: record.editing_history,
-      verification_status: record.verification_status,
-      ownership_classification: record.verification_status,
-      confidence_score: record.manifest_valid ? 92 : record.has_manifest ? 68 : 32,
-      verification_method: "Offline demo provenance synthesis",
-      supporting_evidence: record.reasons,
-      reasons: record.reasons,
-    };
-  };
-
-  const mockTimeline: Record<string, AuditLog[]> = {
-    e1: [
-      { id: 1, actor: "analyst@deeptrace.ai", operation: "Upload & Ingestion", hash_value: "d5c805aa1104e1...", result: "Success", timestamp: "2026-06-09T10:15:00Z" },
-      { id: 2, actor: "system-forensics-agent", operation: "Deep Forensic Analysis", hash_value: "d5c805aa1104e1...", result: "Success", timestamp: "2026-06-09T10:16:00Z" }
-    ],
-    e4: [
-      { id: 3, actor: "analyst@deeptrace.ai", operation: "Upload & Ingestion", hash_value: "47ac8e930cda...", result: "Warning: Integrity validation failed (Office file has abnormal PE segment signatures)", timestamp: "2026-06-08T16:10:00Z" },
-      { id: 4, actor: "system-forensics-agent", operation: "Deep Forensic Analysis", hash_value: "47ac8e930cda...", result: "Success", timestamp: "2026-06-08T16:11:00Z" }
-    ]
-  };
-
-  const mockDeepfakes: Record<string, DeepfakeResult> = {
-    e1: { model_name: "VoiceResNet (Audio Forensics)", deepfake_probability: 0.94, confidence: 91.2, explainability: { synthetic_robotics_index: 8.9, harmonic_peaks_deviation: 12.4 } },
-    e2: { model_name: "VoiceResNet (Audio Forensics)", deepfake_probability: 0.05, confidence: 94.0, explainability: { synthetic_robotics_index: 0.45, harmonic_peaks_deviation: 1.1 } },
-    e3: { model_name: "Xception-Net (FaceForensics++)", deepfake_probability: 0.05, confidence: 94.0, explainability: {} },
-    e4: { model_name: "Xception-Net (FaceForensics++)", deepfake_probability: 0.05, confidence: 94.0, explainability: {} },
-    e5: { model_name: "ViT-B/16 (DeepFakeBench)", deepfake_probability: 0.92, confidence: 88.5, heatmap_path: "/api/v1/storage/uploads/heatmap_preview.jpg", explainability: { facial_bounding_box: [120, 80, 340, 300], eyebrow_asymmetry_ratio: 1.45, noise_discontinuity_score: 8.7, target_dataset_matches: ["FaceForensics++", "CelebDF"], spliced_regions: ["mouth_boundary", "left_eye_socket"] } }
-  };
-
-  const buildMockDeepfakeAssessment = (evidenceId: string, fileType: string): DeepfakeAssessment | null => {
-    const record = mockDeepfakes[evidenceId];
-    if (!record) return null;
-
-    const supportingEvidence: string[] = [];
-    if (record.explainability.eyebrow_asymmetry_ratio !== undefined) {
-      supportingEvidence.push(`Eyebrow asymmetry ratio: ${record.explainability.eyebrow_asymmetry_ratio}.`);
-    }
-    if (record.explainability.noise_discontinuity_score !== undefined) {
-      supportingEvidence.push(`Noise discontinuity score: ${record.explainability.noise_discontinuity_score}.`);
-    }
-    if (record.explainability.temporal_jitter_score !== undefined) {
-      supportingEvidence.push(`Temporal jitter score: ${record.explainability.temporal_jitter_score}.`);
-    }
-    if (record.explainability.lip_sync_lag_ms !== undefined) {
-      supportingEvidence.push(`Lip-sync lag: ${record.explainability.lip_sync_lag_ms} ms.`);
-    }
-    if (record.explainability.synthetic_robotics_index !== undefined) {
-      supportingEvidence.push(`Synthetic robotics index: ${record.explainability.synthetic_robotics_index}.`);
-    }
-    if (record.heatmap_path) {
-      supportingEvidence.push("Heatmap overlay generated for visual explainability.");
-    }
-
-    const probability = record.deepfake_probability;
-    const riskLevel = probability >= 0.8 ? "CRITICAL" : probability >= 0.45 ? "HIGH" : probability >= 0.2 ? "MEDIUM" : "LOW";
-
-    return {
-      file_type: fileType,
-      model_name: record.model_name,
-      deepfake_probability: record.deepfake_probability,
-      confidence_score: record.confidence,
-      risk_level: riskLevel,
-      tampered: probability >= 0.45,
-      verification_method: fileType === "image"
-        ? "DeepFakeBench image model ensemble + heatmap explainability"
-        : fileType === "video"
-          ? "Temporal consistency analysis + frame boundary inspection"
-          : "Voice cloning spectrogram analysis + harmonic deviation scoring",
-      supporting_evidence: supportingEvidence.length > 0 ? supportingEvidence : ["No deepfake-specific anomalies were detected."],
-      heatmap_available: Boolean(record.heatmap_path),
-      heatmap_path: record.heatmap_path,
-      explainability: record.explainability
-    };
-  };
-
-  const mockAiAttributions: Record<string, AIAttributionResult> = {
-    e1: { predicted_source: "Human / Camera Original", probability: 0.05, confidence: 80.0, indicators: { structural_cues: ["Organic signal profile"] } },
-    e2: { predicted_source: "Human / Camera Original", probability: 0.05, confidence: 80.0, indicators: { structural_cues: ["Organic signal profile"] } },
-    e3: { predicted_source: "Human / Camera Original", probability: 0.05, confidence: 80.0, indicators: { structural_cues: ["Organic signal profile"] } },
-    e4: { predicted_source: "Human / Camera Original", probability: 0.05, confidence: 80.0, indicators: { structural_cues: ["Organic signal profile"] } },
-    e5: { predicted_source: "Midjourney", probability: 0.99, confidence: 98.0, indicators: { metadata_signals: ["Found 'midjourney' in PNG Description chunk"], generation_parameters: { comment: "midjourney comment" } } }
-  };
-
-  const mockBlockchains: Record<string, BlockchainRecord> = {
-    e2: { evidence_id: "e2", chain_name: "Polygon PoS (Mainnet Anchor)", transaction_hash: "0x3da82fcda879aefda789bcda279efcd893bca654a28ebd54c728ebcda91bcda987e", block_number: 45892104, registered_owner: "0xe7aa3c298cda928ea13a890a827c10b", verification_status: "VERIFIED OWNER", created_at: "2026-06-09T10:25:00Z" }
-  };
-
-  const buildMockBlockchainAssessment = (record: BlockchainRecord | null): BlockchainAssessment | null => {
-    if (!record) return null;
-    return {
-      anchored: true,
-      verification_status: record.verification_status,
-      ownership_classification: record.verification_status,
-      confidence_score: 95,
-      anchor_strength: 97.5,
-      verification_method: "Ledger anchor + hash continuity + custody audit",
-      supporting_evidence: [
-        `Evidence anchored on ${record.chain_name} at block ${record.block_number}.`,
-        "Transaction receipt present in the simulated ledger."
-      ],
-      transaction_hash: record.transaction_hash,
-      block_number: record.block_number,
-      registered_owner: record.registered_owner,
-      chain_name: record.chain_name,
-      timestamp: record.created_at
-    };
-  };
-
-  const buildMockTrustAssessment = (evidenceId: string): TrustAssessment | null => {
-    const evidence = Object.values(mockEvidence).flat().find((item) => item.id === evidenceId);
-    if (!evidence) return null;
-
-    const forensicsSummary = buildMockForensicsSummary(evidenceId, evidence.file_type);
-    const provenanceAssessment = buildMockProvenanceAssessment(evidenceId);
-    const deepfakeAssessment = buildMockDeepfakeAssessment(evidenceId, evidence.file_type);
-    const blockchainAssessment = buildMockBlockchainAssessment(mockBlockchains[evidenceId] || null);
-    const aiAttribution = mockAiAttributions[evidenceId] || null;
-
-    const supportingEvidence = [
-      ...(forensicsSummary?.supporting_evidence || []),
-      ...(provenanceAssessment?.supporting_evidence || []),
-      ...(deepfakeAssessment?.supporting_evidence || []),
-      ...(blockchainAssessment?.supporting_evidence || []),
-    ].filter(Boolean).slice(0, 10);
-
-    const trustScore = evidence.trust_score;
-    const riskLevel = evidence.risk_level;
-    const trustBand = trustScore >= 85 ? "GREEN" : trustScore >= 50 ? "AMBER" : trustScore >= 20 ? "ORANGE" : "RED";
-    const confidenceScore = Math.max(
-      0,
-      Math.min(
-        100,
-        50 +
-          (forensicsSummary?.tampered ? -8 : 8) +
-          (provenanceAssessment?.manifest_valid ? 12 : provenanceAssessment ? 4 : 0) +
-          (deepfakeAssessment?.heatmap_available ? 8 : 0) +
-          (blockchainAssessment?.anchored ? 10 : 0) +
-          (aiAttribution && aiAttribution.predicted_source !== "Human / Camera Original" ? 4 : 0)
-      )
-    );
-
-    const reasons = [
-      `Raw trust score resolved to ${trustScore.toFixed(1)}%.`,
-      `Risk band classified as ${riskLevel}.`,
-      ...(forensicsSummary?.tampered ? ["Forensic analysis found tamper indicators."] : ["Forensic analysis did not surface major anomalies."]),
-      ...(provenanceAssessment ? [`Provenance resolved to ${provenanceAssessment.ownership_classification}.`] : []),
-      ...(deepfakeAssessment && deepfakeAssessment.risk_level !== "LOW" ? ["Deepfake indicators are elevated and require review."] : []),
-      ...(blockchainAssessment?.anchored ? ["Ledger anchoring strengthens custody continuity."] : []),
-      ...(aiAttribution && aiAttribution.predicted_source !== "Human / Camera Original" ? [`AI attribution flagged a synthetic source: ${aiAttribution.predicted_source}.`] : []),
-    ].slice(0, 10);
-
-    const recommendations = [
-      riskLevel === "CRITICAL"
-        ? "Treat the evidence as operationally unsafe until independently corroborated."
-        : riskLevel === "HIGH"
-          ? "Require secondary verification before sharing outside the case team."
-          : "Trust signal is acceptable but should still be corroborated against source context.",
-      ...(forensicsSummary?.tampered ? ["Review the forensic artifacts for localized manipulation indicators."] : []),
-      ...(provenanceAssessment && provenanceAssessment.ownership_classification !== "VERIFIED OWNER"
-        ? ["Do not assert ownership certainty without cryptographic or blockchain proof."]
-        : []),
-      ...(deepfakeAssessment && ["HIGH", "CRITICAL"].includes(deepfakeAssessment.risk_level)
-        ? ["Escalate to media verification or biometric review."]
-        : []),
-      ...(blockchainAssessment?.anchored && blockchainAssessment.anchor_strength >= 95
-        ? ["Ledger anchoring is strong and can support chain-of-custody attestations."]
-        : []),
-    ].slice(0, 6);
-
-    const verificationMethods = [
-      "Cryptographic Hash Digest",
-      evidence ? "Binary Magic Bytes Ingestion Signature" : "",
-      evidence ? "Metadata Structure Properties extraction" : "",
-      supportingEvidence.length > 0 ? "Deep Forensic Spectral & Noise Audits" : "",
-      provenanceAssessment ? "C2PA Content Credentials Manifest Chain" : "",
-      deepfakeAssessment ? "Deepfake Biometric Distortion Scanning" : "",
-      aiAttribution ? "Generative Model Attribution Signature Checking" : "",
-      blockchainAssessment?.anchored ? "Blockchain Public Ledger Anchor Custody" : "",
-    ].filter(Boolean) as string[];
-
-    return {
-      evidence_id: evidenceId,
-      trust_score: trustScore,
-      risk_level: riskLevel,
-      confidence_score: confidenceScore,
-      verdict: trustScore >= 85 ? "HIGH TRUST" : trustScore >= 50 ? "MODERATE TRUST" : "LOW TRUST",
-      trust_band: trustBand,
-      stability: trustScore >= 85 ? "STABLE" : trustScore >= 50 ? "WATCH" : trustScore >= 20 ? "DEGRADED" : "UNSTABLE",
-      supporting_evidence: supportingEvidence.length > 0 ? supportingEvidence : ["No strong trust signals detected."],
-      recommendations,
-      verification_methods: verificationMethods,
-      reasons,
-      component_breakdown: {
-        integrity: { state: "valid", weight: 8 },
-        metadata: { state: evidence.file_type === "unknown" ? "missing" : "present", weight: evidence.file_type === "unknown" ? -10 : 6 },
-        forensics: { state: forensicsSummary?.tampered ? "tampered" : "clean", weight: forensicsSummary?.tampered ? -4 : 4 },
-        provenance: { state: provenanceAssessment?.ownership_classification || "UNKNOWN OWNER", weight: provenanceAssessment?.manifest_valid ? 12 : 4 },
-        deepfake: { state: deepfakeAssessment?.risk_level || "LOW", weight: deepfakeAssessment?.risk_level === "CRITICAL" ? -15 : deepfakeAssessment?.risk_level === "HIGH" ? -10 : 0 },
-        blockchain: { state: blockchainAssessment?.anchored ? "anchored" : "unanchored", weight: blockchainAssessment?.anchored ? 10 : 0 },
-        ai_attribution: { state: aiAttribution?.predicted_source || "unavailable", weight: aiAttribution && aiAttribution.predicted_source !== "Human / Camera Original" ? -8 : 0 },
-        raw_score: trustScore,
-      },
-      forensics_summary: forensicsSummary,
-      provenance_assessment: provenanceAssessment,
-      deepfake_assessment: deepfakeAssessment,
-      blockchain_assessment: blockchainAssessment,
-      evidence_status: evidence.status,
-      evidence_risk_level: evidence.risk_level,
-    };
-  };
-
-  const buildMockForensicsSummary = (evidenceId: string, fileType: string): ForensicsSummary | null => {
-    const items = mockForensics[evidenceId];
-    if (!items || items.length === 0) return null;
-
-    const supportingEvidence = items.flatMap((item) => item.output_details.reasons || []);
-    const modifiedRegions = items.flatMap((item) => {
-      const regions = item.output_details.modified_regions as unknown;
-      return Array.isArray(regions)
-        ? regions.map((region) => {
-            if (typeof region === "string") return region;
-            if (region && typeof region === "object") {
-              const typedRegion = region as Record<string, unknown>;
-              const source = typedRegion.source_block ? JSON.stringify(typedRegion.source_block) : "unknown";
-              const target = typedRegion.target_block ? JSON.stringify(typedRegion.target_block) : "unknown";
-              return `${source} -> ${target}`;
-            }
-            return "unknown";
-          })
-        : [];
-    });
-
-    return {
-      file_type: fileType,
-      tampered: items.some((item) => item.tampered),
-      confidence_score: Math.max(...items.map((item) => item.confidence)),
-      verification_method: "Offline demo forensics synthesis",
-      supporting_evidence: supportingEvidence.length > 0 ? supportingEvidence : ["No anomalies detected."],
-      modified_regions: modifiedRegions,
-      risk_signal: items.some((item) => item.tampered) ? "tampering" : "clean"
-    };
-  };
-
-  // Restore session and determine whether we can operate in live mode.
-  useEffect(() => {
-    const storedToken = window.localStorage.getItem(AUTH_TOKEN_KEY);
-    const storedEmail = window.localStorage.getItem(AUTH_EMAIL_KEY);
-
-    if (!storedToken) {
-      setIsServerOnline(false);
-      setCases(mockCases);
-      setSelectedCaseId(1);
-      setSessionStatus("Sandbox mode active");
-      return;
-    }
-
-    if (storedEmail) {
-      setAuthEmail(storedEmail);
-    }
-    setAuthToken(storedToken);
-    setSessionStatus(`Session restored for ${storedEmail || "saved analyst"}`);
-
-    fetch(`${API_BASE_URL}/cases`, {
-      headers: {
-        Authorization: `Bearer ${storedToken}`,
-      },
-    })
-      .then(res => {
-        if (!res.ok) {
-          throw new Error("Session expired");
-        }
-        return res.json();
-      })
-      .then((data) => {
-        setCases(data);
-        setIsServerOnline(true);
-        if (data.length > 0) {
-          setSelectedCaseId(data[0].id);
-        }
-      })
-      .catch(() => {
-        window.localStorage.removeItem(AUTH_TOKEN_KEY);
-        window.localStorage.removeItem(AUTH_EMAIL_KEY);
-        setAuthToken(null);
-        setIsServerOnline(false);
-        setCases(mockCases);
-        setSelectedCaseId(1);
-        setSessionStatus("Sandbox mode active");
-      });
-  }, []);
-
-  // Fetch evidence list when case changes
-  useEffect(() => {
-    if (selectedCaseId === null) return;
-
-    setEvidenceList(mockEvidence[selectedCaseId] || []);
-    setSelectedEvidence(null);
-    setSelectedHashes(null);
-    setSelectedMeta(null);
-    setTimeline([]);
-    setForensics([]);
-    setForensicsSummary(null);
-    setProvenance(null);
-    setProvenanceAssessment(null);
-    setDeepfake(null);
-    setDeepfakeAssessment(null);
-    setAiAttribution(null);
-    setBlockchain(null);
-    setBlockchainAssessment(null);
-    setTrustAssessment(null);
-  }, [selectedCaseId, isServerOnline]);
-
-  // Fetch selected evidence detail
-  const handleSelectEvidence = (evidence: Evidence) => {
-    setSelectedEvidence(evidence);
-    setTrustAssessment(null);
-
-    if (!isServerOnline) {
-      setSelectedHashes(mockHashes[evidence.id] || null);
-      setSelectedMeta(mockMetadata[evidence.id] || null);
-      setForensics(mockForensics[evidence.id] || []);
-      setForensicsSummary(buildMockForensicsSummary(evidence.id, evidence.file_type));
-      setProvenance(mockProvenance[evidence.id] || null);
-      setProvenanceAssessment(buildMockProvenanceAssessment(evidence.id));
-      setDeepfake(mockDeepfakes[evidence.id] || null);
-      setDeepfakeAssessment(buildMockDeepfakeAssessment(evidence.id, evidence.file_type));
-      setAiAttribution(mockAiAttributions[evidence.id] || null);
-      setBlockchain(mockBlockchains[evidence.id] || null);
-      setBlockchainAssessment(buildMockBlockchainAssessment(mockBlockchains[evidence.id] || null));
-      setTrustAssessment(buildMockTrustAssessment(evidence.id));
-      setTimeline(mockTimeline[evidence.id] || [
-        { id: 1, actor: "analyst@deeptrace.ai", operation: "Upload & Ingestion", hash_value: "a52c382bfda38...", result: "Success", timestamp: evidence.created_at }
-      ]);
-      return;
-    }
-
-    // Fetch from backend endpoints
-    fetchWithAuth(`${API_BASE_URL}/analysis/${evidence.id}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.hashes) setSelectedHashes(data.hashes);
-        if (data.metadata) setSelectedMeta(data.metadata);
-        if (data.forensics) setForensics(data.forensics);
-        if (data.forensics_summary) setForensicsSummary(data.forensics_summary);
-        if (data.provenance) setProvenance(data.provenance);
-        if (data.provenance_assessment) setProvenanceAssessment(data.provenance_assessment);
-        setDeepfake(data.deepfake || null);
-        if (data.deepfake_assessment) setDeepfakeAssessment(data.deepfake_assessment);
-        setAiAttribution(data.ai_attribution || null);
-        setBlockchain(data.blockchain || null);
-        if (data.blockchain_assessment) setBlockchainAssessment(data.blockchain_assessment);
-        if (data.trust_assessment) setTrustAssessment(data.trust_assessment);
-      })
-      .catch(() => {
-        setSelectedHashes(mockHashes[evidence.id] || null);
-        setSelectedMeta(mockMetadata[evidence.id] || null);
-        setForensics(mockForensics[evidence.id] || []);
-        setForensicsSummary(buildMockForensicsSummary(evidence.id, evidence.file_type));
-        setProvenance(mockProvenance[evidence.id] || null);
-        setProvenanceAssessment(buildMockProvenanceAssessment(evidence.id));
-        setDeepfake(mockDeepfakes[evidence.id] || null);
-        setDeepfakeAssessment(buildMockDeepfakeAssessment(evidence.id, evidence.file_type));
-        setAiAttribution(mockAiAttributions[evidence.id] || null);
-        setBlockchain(mockBlockchains[evidence.id] || null);
-        setBlockchainAssessment(buildMockBlockchainAssessment(mockBlockchains[evidence.id] || null));
-        setTrustAssessment(buildMockTrustAssessment(evidence.id));
-      });
-
-    fetchWithAuth(`${API_BASE_URL}/timeline/${evidence.id}`)
-      .then(res => res.json())
-      .then(data => {
-        setTimeline(data);
-      })
-      .catch(() => {
-        setTimeline(mockTimeline[evidence.id] || []);
-      });
-  };
-
-  const handleRegisterBlockchain = async () => {
-    if (!selectedEvidence) return;
-
-    if (!isServerOnline) {
-      // Simulation
-      const simulatedRecord: BlockchainRecord = {
-        evidence_id: selectedEvidence.id,
-        chain_name: "Polygon PoS (Mainnet Anchor)",
-        transaction_hash: "0x" + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join(""),
-        block_number: Math.floor(45800000 + Math.random()*100000),
-        registered_owner: "0x" + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join(""),
-        verification_status: "VERIFIED OWNER",
-        created_at: new Date().toISOString()
-      };
-      setBlockchain(simulatedRecord);
-      setBlockchainAssessment(buildMockBlockchainAssessment(simulatedRecord));
-      setTrustAssessment(buildMockTrustAssessment(selectedEvidence.id));
-
-      // Boost trust score locally
-      setSelectedEvidence(prev => {
-        if (!prev) return null;
-        const newScore = Math.min(100, prev.trust_score + 10);
-        return {
-          ...prev,
-          trust_score: newScore,
-          risk_level: newScore >= 85 ? "LOW" : newScore >= 50 ? "MEDIUM" : newScore >= 20 ? "HIGH" : "CRITICAL"
-        };
-      });
-
-      // Update in listing too
-      setEvidenceList(prev => prev.map(e => {
-        if (e.id === selectedEvidence.id) {
-          const newScore = Math.min(100, e.trust_score + 10);
-          return {
-            ...e,
-            trust_score: newScore,
-            risk_level: newScore >= 85 ? "LOW" : newScore >= 50 ? "MEDIUM" : newScore >= 20 ? "HIGH" : "CRITICAL"
-          };
-        }
-        return e;
-      }));
-      setTrustAssessment((prev) => {
-        if (!prev) return null;
-        const newScore = Math.min(100, prev.trust_score + 10);
-        return {
-          ...prev,
-          trust_score: newScore,
-          risk_level: newScore >= 85 ? "LOW" : newScore >= 50 ? "MEDIUM" : newScore >= 20 ? "HIGH" : "CRITICAL",
-          verdict: newScore >= 85 ? "HIGH TRUST" : newScore >= 50 ? "MODERATE TRUST" : "LOW TRUST",
-          trust_band: newScore >= 85 ? "GREEN" : newScore >= 50 ? "AMBER" : newScore >= 20 ? "ORANGE" : "RED",
-          stability: newScore >= 85 ? "STABLE" : newScore >= 50 ? "WATCH" : newScore >= 20 ? "DEGRADED" : "UNSTABLE",
-        };
-      });
-
-      // Add to timeline
-      setTimeline(prev => [
-        ...prev,
-        { id: Math.random(), actor: "analyst@deeptrace.ai", operation: "Blockchain Ledger Anchor", hash_value: selectedHashes?.sha256 || "unknown", result: `Success - Block Confirmed`, timestamp: new Date().toISOString() }
-      ]);
-      return;
-    }
-
-    try {
-      const res = await fetchWithAuth(`${API_BASE_URL}/blockchain/register?evidence_id=${selectedEvidence.id}`, {
-        method: "POST"
-      });
-      if (!res.ok) throw new Error("Failed");
-      const record = await res.json();
-      setBlockchain(record);
-      setBlockchainAssessment(record.blockchain_assessment || buildMockBlockchainAssessment(record));
-
-      // Reload evidence details to get updated score
-      const detailsRes = await fetchWithAuth(`${API_BASE_URL}/analysis/${selectedEvidence.id}`);
-      const data = await detailsRes.json();
-      setSelectedEvidence(data.evidence);
-      if (data.blockchain_assessment) setBlockchainAssessment(data.blockchain_assessment);
-      if (data.trust_assessment) setTrustAssessment(data.trust_assessment);
-
-      // Update list
-      setEvidenceList(prev => prev.map(e => e.id === selectedEvidence.id ? data.evidence : e));
-
-      // Refresh audit logs
-      const auditRes = await fetchWithAuth(`${API_BASE_URL}/timeline/${selectedEvidence.id}`);
-      const timelineData = await auditRes.json();
-      setTimeline(timelineData);
-
-    } catch (err: unknown) {
-      alert(`Blockchain Anchor Failed: ${getErrorMessage(err)}`);
-    }
-  };
-
-  // Handle upload drop
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || selectedCaseId === null) return;
-
-    setIsUploading(true);
-    setUploadProgress(10);
-    setAnalysisStatus("Uploading payload...");
-
-    if (!isServerOnline) {
-      // Simulate client side processing
-      setTimeout(() => {
-        setUploadProgress(35);
-        setAnalysisStatus("Extracting digital fingerprints...");
-        
-        setTimeout(() => {
-          setUploadProgress(65);
-          setAnalysisStatus("Running deep forensic analysis...");
-          
-          setTimeout(() => {
-            setUploadProgress(85);
-            setAnalysisStatus("Validating JUMBF APP11 C2PA manifests...");
-
-            setTimeout(() => {
-              const ext = file.name.split(".").pop()?.toLowerCase() || "";
-              const isDoc = ["pdf", "docx", "xlsx"].includes(ext);
-              const isMalicious = file.name.includes("malware") || file.name.includes("edited") || file.name.includes("fake");
-              const isAi = file.name.includes("midjourney") || file.name.includes("sdxl") || file.name.includes("flux");
-              
-              const newEv: Evidence = {
-                id: "new-" + Math.random().toString(36).substr(2, 9),
-                filename: file.name,
-                file_type: ["jpg", "png", "webp"].includes(ext) ? "image" : isDoc ? "document" : "unknown",
-                mime_type: file.type || "application/octet-stream",
-                size_bytes: file.size,
-                status: "completed",
-                risk_level: isMalicious ? "CRITICAL" : isAi ? "MEDIUM" : "LOW",
-                trust_score: isMalicious ? 10.0 : isAi ? 65.0 : 95.0,
-                created_at: new Date().toISOString()
-              };
-
-              const newH: Hashes = {
-                md5: "e10adc3949ba59abbe56e057f20f883e",
-                sha256: "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
-                sha512: "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
-                p_hash: "a3f8c2e9d0a1b2c3"
-              };
-
-              const newM: MetadataRecord = {
-                creator: isAi ? "Midjourney Engine" : "User Acquisition Terminal",
-                software_used: isAi ? "Midjourney v6" : "Standard Input Ingest",
-                created_datetime: new Date().toISOString(),
-                raw_metadata: { file_size_bytes: file.size }
-              };
-
-              const newF: ForensicsResult[] = isMalicious ? [
-                { id: 10, engine_name: ext === "pdf" ? "Document Structural Forensics" : "Image ELA", tampered: true, confidence: 90.0, output_details: { reasons: [ext === "pdf" ? "Embedded Javascript action triggers found" : "ELA compression energy variance detected"] } }
-              ] : [
-                { id: 11, engine_name: "Forensics Engine", tampered: false, confidence: 98.0, output_details: { reasons: ["No anomalies detected"] } }
-              ];
-
-              const newSummary: ForensicsSummary = {
-                file_type: newEv.file_type,
-                tampered: isMalicious,
-                confidence_score: isMalicious ? 90.0 : 98.0,
-                verification_method: "Offline demo forensics synthesis",
-                supporting_evidence: newF.flatMap((item) => item.output_details.reasons || ["No anomalies detected"]),
-                modified_regions: [],
-                risk_signal: isMalicious ? "tampering" : "clean"
-              };
-
-              const newP: ProvenanceRecord = {
-                has_manifest: isAi || isMalicious,
-                manifest_valid: isAi ? true : !isMalicious,
-                creator: isAi ? "Midjourney Generative AI" : isMalicious ? "Adobe Photoshop 2026" : "Unknown Creator",
-                device: isAi ? "AI Pipeline Model" : isMalicious ? "Desktop Workstation" : "Mobile Acquisition Terminal",
-                editing_history: isAi ? [{"action": "c2pa.created", "software": "Midjourney API Model"}] : isMalicious ? [{"action": "c2pa.edited", "software": "Photoshop CS"}, {"action": "c2pa.tampered", "software": "Unknown binary modifier"}] : [],
-                verification_status: isAi ? "PROBABLE OWNER" : isMalicious ? "UNKNOWN OWNER" : "UNKNOWN OWNER",
-                reasons: isAi ? ["AI Generation history detected in metadata fields"] : isMalicious ? ["C2PA checksum signature mismatch detected in byte segments"] : ["No digital provenance signature found"]
-              };
-
-              const newDf: DeepfakeResult = {
-                model_name: isMalicious ? "ViT-B/16 (DeepFakeBench)" : "Xception-Net (FaceForensics++)",
-                deepfake_probability: isMalicious ? 0.92 : 0.05,
-                confidence: isMalicious ? 88.5 : 94.0,
-                heatmap_path: isMalicious ? "/api/v1/storage/uploads/heatmap_preview.jpg" : undefined,
-                explainability: isMalicious ? {
-                  facial_bounding_box: [120, 80, 340, 300],
-                  eyebrow_asymmetry_ratio: 1.45,
-                  noise_discontinuity_score: 8.7,
-                  target_dataset_matches: ["FaceForensics++", "CelebDF"],
-                  spliced_regions: ["mouth_boundary", "left_eye_socket"]
-                } : {}
-              };
-
-              const newAiAttr: AIAttributionResult = {
-                predicted_source: file.name.includes("midjourney") ? "Midjourney" :
-                                  file.name.includes("sdxl") ? "Stable Diffusion" :
-                                  file.name.includes("flux") ? "Flux" : "Human / Camera Original",
-                probability: isAi ? 0.98 : 0.05,
-                confidence: isAi ? 95.0 : 80.0,
-                indicators: isAi ? {
-                  metadata_signals: ["Found matching generator markers in chunks"],
-                  generation_parameters: { comment: "ai prompt comment" }
-                } : {
-                  structural_cues: ["Organic sensor signature"]
-                }
-              };
-
-              setEvidenceList(prev => [newEv, ...prev]);
-              setSelectedEvidence(newEv);
-              setSelectedHashes(newH);
-              setSelectedMeta(newM);
-              setForensics(newF);
-              setForensicsSummary(newSummary);
-              setProvenance(newP);
-              setProvenanceAssessment({
-                has_manifest: newP.has_manifest,
-                manifest_valid: newP.manifest_valid,
-                creator: newP.creator,
-                device: newP.device,
-                editing_history: newP.editing_history,
-                verification_status: newP.verification_status,
-                ownership_classification: newP.verification_status,
-                confidence_score: newP.manifest_valid ? 92 : newP.has_manifest ? 68 : 32,
-                verification_method: "Offline demo provenance synthesis",
-                supporting_evidence: newP.reasons,
-                reasons: newP.reasons,
-              });
-              setDeepfake(newDf);
-              setDeepfakeAssessment({
-                file_type: newEv.file_type,
-                model_name: newDf.model_name,
-                deepfake_probability: newDf.deepfake_probability,
-                confidence_score: newDf.confidence,
-                risk_level: newDf.deepfake_probability >= 0.8 ? "CRITICAL" : newDf.deepfake_probability >= 0.45 ? "HIGH" : "LOW",
-                tampered: newDf.deepfake_probability >= 0.45,
-                verification_method: newEv.file_type === "image"
-                  ? "DeepFakeBench image model ensemble + heatmap explainability"
-                  : newEv.file_type === "video"
-                    ? "Temporal consistency analysis + frame boundary inspection"
-                    : "Voice cloning spectrogram analysis + harmonic deviation scoring",
-                supporting_evidence: Object.entries(newDf.explainability).map(([key, value]) => `${key}: ${JSON.stringify(value)}`),
-                heatmap_available: Boolean(newDf.heatmap_path),
-                heatmap_path: newDf.heatmap_path,
-                explainability: newDf.explainability
-              });
-              setAiAttribution(newAiAttr);
-              setTrustAssessment({
-                evidence_id: newEv.id,
-                trust_score: newEv.trust_score,
-                risk_level: newEv.risk_level,
-                confidence_score: isMalicious ? 62 : isAi ? 74 : 88,
-                verdict: newEv.trust_score >= 85 ? "HIGH TRUST" : newEv.trust_score >= 50 ? "MODERATE TRUST" : "LOW TRUST",
-                trust_band: newEv.trust_score >= 85 ? "GREEN" : newEv.trust_score >= 50 ? "AMBER" : newEv.trust_score >= 20 ? "ORANGE" : "RED",
-                stability: newEv.trust_score >= 85 ? "STABLE" : newEv.trust_score >= 50 ? "WATCH" : newEv.trust_score >= 20 ? "DEGRADED" : "UNSTABLE",
-                supporting_evidence: [
-                  ...newSummary.supporting_evidence,
-                  ...newP.reasons,
-                  ...(Object.keys(newDf.explainability).length > 0
-                    ? Object.entries(newDf.explainability).map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
-                    : []),
-                  isAi ? `AI attribution flagged a synthetic source: ${newAiAttr.predicted_source}.` : "AI attribution remained human-aligned.",
-                ].slice(0, 10),
-                recommendations: [
-                  isMalicious
-                    ? "Treat the evidence as operationally unsafe until independently corroborated."
-                    : isAi
-                      ? "Trust signal is acceptable but should still be corroborated against source context."
-                      : "Trust signal is acceptable but should still be corroborated against source context.",
-                  ...(isMalicious ? ["Review the forensic artifacts for localized manipulation indicators."] : []),
-                  ...(newP.verification_status !== "VERIFIED OWNER" ? ["Do not assert ownership certainty without cryptographic or blockchain proof."] : []),
-                  ...(newDf.deepfake_probability >= 0.45 ? ["Escalate to media verification or biometric review."] : []),
-                ],
-                verification_methods: [
-                  "Cryptographic Hash Digest",
-                  "Metadata Structure Properties extraction",
-                  "Deep Forensic Spectral & Noise Audits",
-                  "C2PA Content Credentials Manifest Chain",
-                  "Deepfake Biometric Distortion Scanning",
-                  "Generative Model Attribution Signature Checking",
-                ],
-                reasons: [
-                  `Raw trust score resolved to ${newEv.trust_score.toFixed(1)}%.`,
-                  `Risk band classified as ${newEv.risk_level}.`,
-                  ...(isMalicious ? ["Forensic analysis found tamper indicators."] : ["Forensic analysis did not surface major anomalies."]),
-                  ...(newP ? [`Provenance resolved to ${newP.verification_status}.`] : []),
-                  ...(newDf.deepfake_probability >= 0.45 ? ["Deepfake indicators are elevated and require review."] : []),
-                  ...(isAi ? [`AI attribution flagged a synthetic source: ${newAiAttr.predicted_source}.`] : []),
-                ],
-                component_breakdown: {
-                  integrity: { state: "valid", weight: 8 },
-                  metadata: { state: "present", weight: 6 },
-                  forensics: { state: isMalicious ? "tampered" : "clean", weight: isMalicious ? -4 : 4 },
-                  provenance: { state: newP.verification_status, weight: newP.manifest_valid ? 12 : 4 },
-                  deepfake: { state: newDf.deepfake_probability >= 0.8 ? "CRITICAL" : newDf.deepfake_probability >= 0.45 ? "HIGH" : "LOW", weight: newDf.deepfake_probability >= 0.8 ? -15 : newDf.deepfake_probability >= 0.45 ? -10 : 0 },
-                  blockchain: { state: "unanchored", weight: 0 },
-                  ai_attribution: { state: newAiAttr.predicted_source, weight: isAi ? -8 : 0 },
-                  raw_score: newEv.trust_score,
-                },
-                forensics_summary: newSummary,
-                provenance_assessment: {
-                  has_manifest: newP.has_manifest,
-                  manifest_valid: newP.manifest_valid,
-                  creator: newP.creator,
-                  device: newP.device,
-                  editing_history: newP.editing_history,
-                  verification_status: newP.verification_status,
-                  ownership_classification: newP.verification_status,
-                  confidence_score: newP.manifest_valid ? 92 : newP.has_manifest ? 68 : 32,
-                  verification_method: "Offline demo provenance synthesis",
-                  supporting_evidence: newP.reasons,
-                  reasons: newP.reasons,
-                },
-                deepfake_assessment: {
-                  file_type: newEv.file_type,
-                  model_name: newDf.model_name,
-                  deepfake_probability: newDf.deepfake_probability,
-                  confidence_score: newDf.confidence,
-                  risk_level: newDf.deepfake_probability >= 0.8 ? "CRITICAL" : newDf.deepfake_probability >= 0.45 ? "HIGH" : "LOW",
-                  tampered: newDf.deepfake_probability >= 0.45,
-                  verification_method: newEv.file_type === "image"
-                    ? "DeepFakeBench image model ensemble + heatmap explainability"
-                    : newEv.file_type === "video"
-                      ? "Temporal consistency analysis + frame boundary inspection"
-                      : "Voice cloning spectrogram analysis + harmonic deviation scoring",
-                  supporting_evidence: Object.entries(newDf.explainability).map(([key, value]) => `${key}: ${JSON.stringify(value)}`),
-                  heatmap_available: Boolean(newDf.heatmap_path),
-                  heatmap_path: newDf.heatmap_path,
-                  explainability: newDf.explainability
-                },
-                blockchain_assessment: null,
-                evidence_status: newEv.status,
-                evidence_risk_level: newEv.risk_level,
-              });
-              setTimeline([
-                { id: 1, actor: "analyst@deeptrace.ai", operation: "Upload & Ingestion", hash_value: "8d969eef6e...", result: "Success", timestamp: new Date().toISOString() },
-                { id: 2, actor: "system-forensics-agent", operation: "Deep Forensic Analysis", hash_value: "8d969eef6e...", result: "Success", timestamp: new Date().toISOString() },
-                { id: 3, actor: "system-forensics-agent", operation: "C2PA Provenance Signature Scan", hash_value: "8d969eef6e...", result: isMalicious ? "Warning: C2PA signature failed" : "Success", timestamp: new Date().toISOString() }
-              ]);
-
-              setIsUploading(false);
-              setUploadProgress(0);
-              setAnalysisStatus("");
-            }, 800);
-          }, 800);
-        }, 800);
-      }, 800);
-      return;
-    }
-
-    // Backend active mode
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("case_id", selectedCaseId.toString());
-
-    try {
-      setUploadProgress(20);
-      const res = await fetchWithAuth(`${API_BASE_URL}/upload`, {
-        method: "POST",
-        body: formData
-      });
-      
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "Upload failed");
-      }
-      
-      setUploadProgress(50);
-      setAnalysisStatus("Extracting metadata & forensics...");
-      const uploadResult = await res.json();
-      const evidence_id = uploadResult.evidence_id;
-
-      // Call analysis endpoint
-      const analyzeRes = await fetchWithAuth(`${API_BASE_URL}/analyze?evidence_id=${evidence_id}`, {
-        method: "POST"
-      });
-
-      if (!analyzeRes.ok) throw new Error("Analysis failed");
-
-      setUploadProgress(100);
-      setAnalysisStatus("Finished");
-
-      const updatedEvListResponse = await fetchWithAuth(`${API_BASE_URL}/analysis/${evidence_id}`);
-      const updatedData = await updatedEvListResponse.json();
-      
-      setEvidenceList(prev => [updatedData.evidence, ...prev]);
-      handleSelectEvidence(updatedData.evidence);
-
-      setTimeout(() => {
-        setIsUploading(false);
-        setUploadProgress(0);
-        setAnalysisStatus("");
-      }, 500);
-
-    } catch (err: unknown) {
-      alert(`Forensics Upload Failed: ${getErrorMessage(err)}`);
-      setIsUploading(false);
-      setUploadProgress(0);
-      setAnalysisStatus("");
-    }
-  };
-
-  // Add Case
-  const handleCreateCase = async () => {
-    if (!newCaseTitle.trim()) return;
-
-    if (!isServerOnline) {
-      const newCaseObj: Case = {
-        id: cases.length + 1,
-        case_number: `CASE-2026-000${cases.length + 1}`,
-        title: newCaseTitle,
-        description: newCaseDesc,
-        status: "active",
-        created_at: new Date().toISOString()
-      };
-      setCases([...cases, newCaseObj]);
-      setSelectedCaseId(newCaseObj.id);
-      setShowNewCaseModal(false);
-      setNewCaseTitle("");
-      setNewCaseDesc("");
-      return;
-    }
-
-    try {
-      const res = await fetchWithAuth(`${API_BASE_URL}/cases`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newCaseTitle, description: newCaseDesc })
-      });
-      if (!res.ok) throw new Error("Failed");
-      const data = await res.json();
-      setCases([...cases, data]);
-      setSelectedCaseId(data.id);
-      setShowNewCaseModal(false);
-      setNewCaseTitle("");
-      setNewCaseDesc("");
-    } catch {
-      alert("Failed to create case");
-    }
-  };
-
-  const handleSignIn = async () => {
-    if (!authEmail.trim() || !authPassword.trim()) return;
-
-    setIsAuthenticating(true);
-    setAuthError("");
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: authEmail.trim(),
-          password: authPassword,
-        }),
-      });
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        throw new Error(payload?.detail || "Sign-in failed");
-      }
-
-      const data = await response.json();
-      window.localStorage.setItem(AUTH_TOKEN_KEY, data.access_token);
-      window.localStorage.setItem(AUTH_EMAIL_KEY, authEmail.trim());
-      setAuthToken(data.access_token);
-      setIsServerOnline(true);
-      setSessionStatus(`Live session active for ${authEmail.trim()}`);
-
-      const casesResponse = await fetch(`${API_BASE_URL}/cases`, {
-        headers: {
-          Authorization: `Bearer ${data.access_token}`,
-        },
-      });
-
-      if (!casesResponse.ok) {
-        throw new Error("Failed to load live cases");
-      }
-
-      const liveCases = await casesResponse.json();
-      setCases(liveCases);
-      if (liveCases.length > 0) {
-        setSelectedCaseId(liveCases[0].id);
-      }
-    } catch (error) {
-      setAuthError(getErrorMessage(error));
-      setSessionStatus("Sandbox mode active");
-      setIsServerOnline(false);
-      setCases(mockCases);
-      setSelectedCaseId(1);
-    } finally {
-      setIsAuthenticating(false);
-    }
-  };
-
-  const handleSignOut = () => {
-    window.localStorage.removeItem(AUTH_TOKEN_KEY);
-    window.localStorage.removeItem(AUTH_EMAIL_KEY);
-    setAuthToken(null);
-    setIsServerOnline(false);
-    setAuthError("");
-    setSessionStatus("Sandbox mode active");
-    setCases(mockCases);
-    setSelectedCaseId(1);
-    setSelectedEvidence(null);
-    setSelectedHashes(null);
-    setSelectedMeta(null);
-    setTimeline([]);
-    setForensics([]);
-    setForensicsSummary(null);
-    setProvenance(null);
-    setProvenanceAssessment(null);
-    setDeepfake(null);
-    setDeepfakeAssessment(null);
-    setAiAttribution(null);
-    setBlockchain(null);
-    setBlockchainAssessment(null);
-    setTrustAssessment(null);
-  };
-
-  // Format file size
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
-
-  // Stats calculation
-  const totalFiles = evidenceList.length;
-  const avgTrustScore = totalFiles > 0 
-    ? Math.round(evidenceList.reduce((acc, curr) => acc + curr.trust_score, 0) / totalFiles)
-    : 100;
-    
-  const criticalAlerts = evidenceList.filter(e => e.risk_level === "CRITICAL" || e.risk_level === "HIGH").length;
-
-  // Filter evidence list based on query
-  const filteredEvidence = evidenceList.filter(e => 
-    e.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    e.risk_level.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
+}
+
+function extractMessage(error: unknown) {
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    if (typeof record.detail === "string") return record.detail;
+    if (Array.isArray(record.detail)) return record.detail.map(String).join(", ");
+    if (typeof record.message === "string") return record.message;
+  }
+  return "Request failed";
+}
+
+function formatBytes(bytes: number) {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let index = 0;
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024;
+    index += 1;
+  }
+  return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "N/A";
+  const dt = new Date(value);
+  return Number.isNaN(dt.getTime()) ? value : dt.toLocaleString();
+}
+
+function relativeTime(value?: string | null) {
+  if (!value) return "just now";
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return value;
+  const diff = Date.now() - dt.getTime();
+  const minutes = Math.max(1, Math.round(Math.abs(diff) / 60000));
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+function riskColor(value: string) {
+  switch (value.toUpperCase()) {
+    case "CRITICAL":
+      return "var(--crit)";
+    case "HIGH":
+      return "var(--orange)";
+    case "MEDIUM":
+      return "var(--warn)";
+    case "LOW":
+      return "var(--success)";
+    default:
+      return "var(--muted2)";
+  }
+}
+
+function severityColor(value: Severity) {
+  switch (value) {
+    case "CRITICAL":
+      return "var(--crit)";
+    case "HIGH":
+      return "var(--orange)";
+    case "WARNING":
+      return "var(--warn)";
+    case "LOW":
+      return "var(--success)";
+    default:
+      return "var(--blue)";
+  }
+}
+
+function titleCase(value: string) {
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function compact(value: unknown) {
+  if (Array.isArray(value)) return `${value.length} items`;
+  if (value && typeof value === "object") return `${Object.keys(value).length} fields`;
+  if (typeof value === "string") return value;
+  return "Available";
+}
+
+function keyValuePairs(obj: Record<string, unknown> | null | undefined, max = 6) {
+  if (!obj) return [];
+  return Object.entries(obj)
+    .filter(([, value]) => value !== null && value !== undefined && value !== "")
+    .slice(0, max);
+}
+
+function StatCard({
+  label,
+  value,
+  subtext,
+  icon: Icon,
+  tone = "var(--primary)",
+}: {
+  label: string;
+  value: string;
+  subtext: string;
+  icon: LucideIcon;
+  tone?: string;
+}) {
   return (
-    <div className="flex flex-col min-h-screen text-slate-100">
-      {/* Top Banner Status Bar */}
-      <div className={`px-4 py-1 text-xs text-center flex items-center justify-center gap-2 ${
-        isServerOnline ? "bg-indigo-950/40 text-indigo-400 border-b border-indigo-900/30" : "bg-amber-950/40 text-amber-400 border-b border-amber-900/30"
-      }`}>
-        <Activity className={`w-3.5 h-3.5 ${isServerOnline ? "text-indigo-400 animate-pulse" : "text-amber-400"}`} />
-        <span>
-          {isServerOnline && authToken
-            ? "API GATEWAY INTEGRATION ACTIVE: AUTHENTICATED TO LOCAL CODESPACE BACKEND"
-            : "SANDBOX MODE ACTIVE: RUNNING CLIENT-SIDE MOCKS (SIGN IN TO BIND THE FASTAPI ENGINE)"}
-        </span>
-      </div>
-
-      {/* Main App Layout */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* SIDEBAR: Case List & Branding */}
-        <aside className="w-80 border-r border-slate-900 bg-slate-950/40 flex flex-col justify-between">
-          <div className="p-6 flex flex-col gap-6">
-            {/* BRANDING */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center glow-border-purple">
-                <Shield className="w-5.5 h-5.5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-lg font-extrabold tracking-wider bg-gradient-to-r from-purple-400 via-indigo-200 to-white bg-clip-text text-transparent">
-                  DEEPTRACE AI
-                </h1>
-                <p className="text-[10px] text-indigo-400 font-semibold uppercase tracking-widest leading-none">
-                  Trust Intelligence
-                </p>
-              </div>
-            </div>
-
-            {/* CASES NAVIGATION HEADER */}
-            <div className="flex items-center justify-between mt-4">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                <Layers className="w-3.5 h-3.5" /> Active Cases
-              </span>
-              <button 
-                onClick={() => setShowNewCaseModal(true)}
-                className="p-1 rounded bg-indigo-650 hover:bg-indigo-600 text-white transition-all flex items-center justify-center"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* CASES LIST */}
-            <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto pr-1">
-              {cases.map((c) => (
-                <div
-                  key={c.id}
-                  onClick={() => setSelectedCaseId(c.id)}
-                  className={`p-3 rounded-xl cursor-pointer border transition-all ${
-                    selectedCaseId === c.id
-                      ? "bg-indigo-950/30 border-indigo-500/40 text-white shadow-[0_0_15px_rgba(99,102,241,0.1)]"
-                      : "border-transparent bg-slate-900/20 text-slate-400 hover:bg-slate-900/40 hover:text-slate-200"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-indigo-400 border border-slate-800">
-                      {c.case_number}
-                    </span>
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                      c.status === "active" ? "bg-emerald-500" : "bg-slate-500"
-                    }`} />
-                  </div>
-                  <h3 className="text-sm font-semibold truncate">{c.title}</h3>
-                  <p className="text-xs text-slate-500 line-clamp-2 mt-1">{c.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Session Panel */}
-          <div className="p-6 border-t border-slate-900 bg-slate-950/60 flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-indigo-400">
-                  FA
-                </div>
-                <div>
-                  <p className="text-xs font-semibold">{authToken ? authEmail : "Forensic Analyst Alex"}</p>
-                  <p className="text-[10px] text-slate-500">{authToken ? "Live session" : "Sandbox session"}</p>
-                </div>
-              </div>
-              {authToken ? (
-                <button
-                  onClick={handleSignOut}
-                  className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800 transition-colors"
-                >
-                  Sign out
-                </button>
-              ) : null}
-            </div>
-
-            <div className="rounded-xl border border-slate-900 bg-slate-900/30 p-3 flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Session Status</p>
-                <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${
-                  authToken
-                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                    : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                }`}>
-                  {authToken ? "Authenticated" : "Unauthenticated"}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400">{sessionStatus}</p>
-
-              {!authToken && (
-                <div className="flex flex-col gap-2">
-                  <input
-                    type="email"
-                    value={authEmail}
-                    onChange={(e) => setAuthEmail(e.target.value)}
-                    placeholder="Analyst email"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/50"
-                  />
-                  <input
-                    type="password"
-                    value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                    placeholder="Password"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/50"
-                  />
-                  {authError && <p className="text-[10px] text-rose-400">{authError}</p>}
-                  <button
-                    onClick={handleSignIn}
-                    disabled={isAuthenticating}
-                    className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-xs font-semibold text-white transition-colors"
-                  >
-                    {isAuthenticating ? "Connecting..." : "Sign in to live backend"}
-                  </button>
-                  <p className="text-[10px] text-slate-500">
-                    Use the seeded analyst account for local access or keep sandbox mode for offline demos.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </aside>
-
-        {/* MAIN DISPLAY */}
-        <main className="flex-1 flex flex-col bg-slate-950/20 overflow-y-auto">
-          {/* Dashboard Summary Statistics */}
-          <div className="p-8 grid grid-cols-4 gap-6">
-            <div className="glass-panel p-5 rounded-2xl flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
-                <Binary className="w-6 h-6 text-indigo-400" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-400 font-medium">Seized Assets</p>
-                <h4 className="text-2xl font-bold">{totalFiles} Files</h4>
-              </div>
-            </div>
-
-            <div className="glass-panel p-5 rounded-2xl flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
-                <Cpu className="w-6 h-6 text-purple-400" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-400 font-medium">Avg Trust Score</p>
-                <h4 className="text-2xl font-bold">{avgTrustScore}%</h4>
-              </div>
-            </div>
-
-            <div className="glass-panel p-5 rounded-2xl flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
-                <AlertTriangle className="w-6 h-6 text-rose-400" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-400 font-medium">Critical Risks</p>
-                <h4 className="text-2xl font-bold">{criticalAlerts} Matches</h4>
-              </div>
-            </div>
-
-            <div className="glass-panel p-5 rounded-2xl flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-400 font-medium">Seals & Proofs</p>
-                <h4 className="text-2xl font-bold">C2PA Ready</h4>
-              </div>
-            </div>
-          </div>
-
-          {/* Upload and Workspace Split */}
-          <div className="px-8 pb-8 grid grid-cols-3 gap-6">
-            {/* Left/Middle Panels: Upload area & Seized items */}
-            <div className="col-span-2 flex flex-col gap-6">
-              
-              {/* UPLOAD DROPZONE */}
-              <div className="glass-panel rounded-2xl p-6 border-dashed border-2 border-indigo-500/20 bg-indigo-950/5 relative overflow-hidden flex flex-col items-center justify-center text-center group min-h-[160px]">
-                {isUploading ? (
-                  <div className="w-full max-w-md flex flex-col items-center gap-4">
-                    <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
-                    <div>
-                      <h4 className="text-sm font-semibold">{analysisStatus}</h4>
-                      <p className="text-xs text-slate-400 mt-1">Splicing scanning & container checks active...</p>
-                    </div>
-                    <div className="w-full bg-slate-900 rounded-full h-1.5 border border-slate-800 overflow-hidden">
-                      <div 
-                        className="bg-gradient-to-r from-purple-500 to-indigo-500 h-full transition-all duration-300"
-                        style={{ width: `${uploadProgress}%` }}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <input 
-                      type="file" 
-                      id="evidence-upload"
-                      ref={fileInputRef} 
-                      onChange={handleFileUpload} 
-                      className="hidden" 
-                    />
-                    <label 
-                      htmlFor="evidence-upload"
-                      className="cursor-pointer flex flex-col items-center gap-3 w-full h-full py-4"
-                    >
-                      <div className="w-12 h-12 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                        <Upload className="w-5 h-5 text-indigo-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-slate-200">
-                          Seize and Upload New Media Asset
-                        </p>
-                        <p className="text-xs text-slate-400 mt-1">
-                          Accepts Images, Video, Audio, PDF, Office Documents, APK, Archives
-                        </p>
-                      </div>
-                    </label>
-                  </>
-                )}
-              </div>
-
-              {/* EVIDENCE LISTING */}
-              <div className="glass-panel rounded-2xl p-6 flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-md font-bold tracking-wide flex items-center gap-2">
-                    <Database className="w-4 h-4 text-indigo-400" /> Cataloged Evidence Vault
-                  </h2>
-                  
-                  {/* Search Bar */}
-                  <div className="relative w-64">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      placeholder="Search vault..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-slate-900/60 border border-slate-800 rounded-lg pl-9 pr-4 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500/50"
-                    />
-                  </div>
-                </div>
-
-                {filteredEvidence.length === 0 ? (
-                  <div className="text-center py-12 border border-slate-900 rounded-xl bg-slate-900/10">
-                    <FileText className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                    <p className="text-xs text-slate-400">No cataloged files match the search criteria.</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2 max-h-[350px] overflow-y-auto pr-1">
-                    {filteredEvidence.map((e) => (
-                      <div
-                        key={e.id}
-                        onClick={() => handleSelectEvidence(e)}
-                        className={`p-3.5 rounded-xl cursor-pointer border flex items-center justify-between transition-all ${
-                          selectedEvidence?.id === e.id
-                            ? "bg-indigo-950/20 border-indigo-500/40 text-white"
-                            : "border-slate-900 bg-slate-900/20 text-slate-300 hover:bg-slate-900/40"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${
-                            e.file_type === "image" ? "bg-blue-500/10 text-blue-400" :
-                            e.file_type === "audio" ? "bg-amber-500/10 text-amber-400" :
-                            e.file_type === "video" ? "bg-purple-500/10 text-purple-400" :
-                            "bg-slate-500/10 text-slate-400"
-                          }`}>
-                            <FileText className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-semibold truncate max-w-[220px]">{e.filename}</p>
-                            <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                              {e.mime_type} â€¢ {formatBytes(e.size_bytes)}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className="text-[10px] text-slate-500 uppercase font-semibold">Trust Score</p>
-                            <p className={`text-xs font-bold font-mono ${
-                              e.trust_score >= 80 ? "text-emerald-400" :
-                              e.trust_score >= 50 ? "text-amber-400" : "text-rose-500"
-                            }`}>
-                              {e.trust_score}%
-                            </p>
-                          </div>
-
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                            e.risk_level === "LOW" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                            e.risk_level === "MEDIUM" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
-                            e.risk_level === "HIGH" ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" :
-                            "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                          }`}>
-                            {e.risk_level}
-                          </span>
-
-                          <ChevronRight className="w-4 h-4 text-slate-500" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right Panel: Detail Inspection panel */}
-            <div className="col-span-1 flex flex-col gap-6">
-              {selectedEvidence ? (
-                <div className="glass-panel rounded-2xl p-6 flex flex-col gap-6">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold truncate max-w-[150px]">{selectedEvidence.filename}</h3>
-                      <p className="text-[10px] text-slate-400 mt-1 uppercase font-semibold tracking-wider">
-                        Forensic Inspection Report
-                      </p>
-                    </div>
-                    {/* C2PA Provenance verified badge */}
-                    {provenance && provenance.has_manifest && (
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
-                        provenance.manifest_valid 
-                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
-                          : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                      }`}>
-                        <Award className="w-3 h-3" /> {provenance.verification_status}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Trust Score Radial Meter */}
-                  <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-slate-900/40 border border-slate-900">
-                    <div className="relative w-28 h-28 flex items-center justify-center">
-                      <svg className="w-full h-full transform -rotate-90">
-                        <circle
-                          cx="56"
-                          cy="56"
-                          r="45"
-                          className="stroke-slate-800"
-                          strokeWidth="8"
-                          fill="transparent"
-                        />
-                        <circle
-                          cx="56"
-                          cy="56"
-                          r="45"
-                          className={`${
-                            selectedEvidence.trust_score >= 80 ? "stroke-emerald-500" :
-                            selectedEvidence.trust_score >= 50 ? "stroke-amber-500" : "stroke-rose-500"
-                          }`}
-                          strokeWidth="8"
-                          fill="transparent"
-                          strokeDasharray={2 * Math.PI * 45}
-                          strokeDashoffset={2 * Math.PI * 45 * (1 - selectedEvidence.trust_score / 100)}
-                        />
-                      </svg>
-                      <div className="absolute flex flex-col items-center justify-center">
-                        <span className="text-2xl font-bold font-mono">{selectedEvidence.trust_score}%</span>
-                        <span className="text-[9px] text-slate-500 font-semibold tracking-wider uppercase">Trust Index</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {trustAssessment && (
-                    <div className="flex flex-col gap-3">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Award className="w-3.5 h-3.5 text-cyan-400" /> Trust Intelligence
-                      </h4>
-                      <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-900 text-xs flex flex-col gap-2.5">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-500 font-semibold">Verdict:</span>
-                          <span className={`font-bold px-2 py-0.5 rounded ${
-                            trustAssessment.risk_level === "LOW"
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                              : trustAssessment.risk_level === "MEDIUM"
-                                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                                : trustAssessment.risk_level === "HIGH"
-                                  ? "bg-orange-500/10 text-orange-400 border border-orange-500/20"
-                                  : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                          }`}>
-                            {trustAssessment.verdict}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Risk Level:</span>
-                          <span className="font-mono text-cyan-300 font-bold">{trustAssessment.risk_level}</span>
-                        </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Trust Band:</span>
-                          <span className="font-mono text-cyan-300 font-bold">{trustAssessment.trust_band}</span>
-                        </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Confidence:</span>
-                          <span className="font-mono text-cyan-300 font-bold">{trustAssessment.confidence_score.toFixed(1)}%</span>
-                        </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Stability:</span>
-                          <span className="text-slate-300">{trustAssessment.stability}</span>
-                        </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Methods:</span>
-                          <span className="text-slate-300 text-right">{trustAssessment.verification_methods.length} checks</span>
-                        </div>
-                        {trustAssessment.supporting_evidence.length > 0 && (
-                          <div className="mt-1.5 border-t border-slate-850 pt-2 flex flex-col gap-1.5 text-[10px]">
-                            <span className="text-[9px] text-slate-500 font-bold uppercase">Key Signals</span>
-                            {trustAssessment.supporting_evidence.slice(0, 3).map((item, idx) => (
-                              <div key={idx} className="flex items-start gap-1.5 text-slate-400">
-                                <Check className="w-3 h-3 text-cyan-400 shrink-0 mt-0.5" />
-                                <span>{item}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {trustAssessment.recommendations.length > 0 && (
-                          <div className="mt-1 bg-slate-950 p-2 rounded border border-slate-900">
-                            <p className="text-[9px] text-slate-500 font-bold uppercase mb-1">Analyst Guidance</p>
-                            <div className="flex flex-col gap-1">
-                              {trustAssessment.recommendations.slice(0, 2).map((item, idx) => (
-                                <p key={idx} className="text-[10px] text-slate-300 leading-tight">{item}</p>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ACTIONS PANEL */}
-                  <div className="flex flex-col gap-2">
-                    <button
-                      onClick={() => window.open(`${API_BASE_URL}/report/${selectedEvidence.id}`, "_blank")}
-                      className="w-full py-2 px-3 rounded-lg bg-indigo-650 hover:bg-indigo-600 font-semibold text-xs transition-all flex items-center justify-center gap-1.5 shadow-[0_0_10px_rgba(99,102,241,0.2)]"
-                    >
-                      <FileText className="w-3.5 h-3.5" /> Export Forensic PDF Report
-                    </button>
-                    
-                    {!blockchain ? (
-                      <button
-                        onClick={handleRegisterBlockchain}
-                        className="w-full py-2 px-3 rounded-lg bg-slate-900 border border-slate-800 hover:bg-slate-850 font-semibold text-xs transition-all flex items-center justify-center gap-1.5"
-                      >
-                        <Database className="w-3.5 h-3.5 text-indigo-400" /> Anchor to Blockchain Ledger
-                      </button>
-                    ) : (
-                      <div className="py-1 px-2 rounded-lg bg-emerald-950/20 border border-emerald-900/30 text-emerald-400 text-[10px] text-center font-semibold">
-                        âœ“ SECURED ON BLOCKCHAIN LEDGER
-                      </div>
-                    )}
-                  </div>
-
-                  {/* PROVENANCE CARD (PHASE 3) */}
-                  {provenance && provenance.has_manifest && (
-                    <div className="flex flex-col gap-3">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Award className="w-3.5 h-3.5 text-indigo-400" /> Content Credentials (C2PA)
-                      </h4>
-                      <div className="p-3 rounded-lg bg-indigo-950/10 border border-indigo-900/20 text-xs flex flex-col gap-2">
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Signing Entity:</span>
-                          <span className="text-slate-200 font-medium">{provenance.creator}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Device Source:</span>
-                          <span className="text-slate-200 font-medium">{provenance.device}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Manifest CA:</span>
-                          <span className={`font-mono font-bold ${provenance.manifest_valid ? "text-emerald-400" : "text-rose-400"}`}>
-                            {provenance.manifest_valid ? "VERIFIED & SIGNED" : "UNTRUSTED / BROKEN"}
-                          </span>
-                        </div>
-
-                        {/* Provenance History Timeline */}
-                        {provenance.editing_history.length > 0 && (
-                          <div className="mt-2 border-t border-indigo-900/20 pt-2">
-                            <p className="text-[9px] text-slate-500 font-bold uppercase mb-1.5">Provenance Pipeline</p>
-                            <div className="flex flex-col gap-1.5 pl-1.5 border-l border-indigo-950">
-                              {provenance.editing_history.map((h: ProvenanceHistoryEntry, idx: number) => (
-                                <div key={idx} className="text-[10px]">
-                                  <p className="text-slate-300 font-semibold">{h.action}</p>
-                                  <p className="text-[9px] text-slate-500">{h.software}</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {provenanceAssessment && (
-                    <div className="flex flex-col gap-3">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Shield className="w-3.5 h-3.5 text-cyan-400" /> Provenance Assessment
-                      </h4>
-                      <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-900 text-xs flex flex-col gap-2.5">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-500">Ownership Class:</span>
-                          <span className={`font-bold px-2 py-0.5 rounded ${
-                            provenanceAssessment.ownership_classification === "VERIFIED OWNER"
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                              : provenanceAssessment.ownership_classification === "PROBABLE OWNER"
-                                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                                : "bg-slate-800 text-slate-300 border border-slate-700"
-                          }`}>
-                            {provenanceAssessment.ownership_classification}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Confidence:</span>
-                          <span className="font-mono text-cyan-300 font-bold">{provenanceAssessment.confidence_score.toFixed(1)}%</span>
-                        </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Method:</span>
-                          <span className="text-slate-300">{provenanceAssessment.verification_method}</span>
-                        </div>
-                        {provenanceAssessment.supporting_evidence.length > 0 && (
-                          <div className="mt-1.5 border-t border-slate-850 pt-2 flex flex-col gap-1.5 text-[10px]">
-                            <span className="text-[9px] text-slate-500 font-bold uppercase">Supporting Evidence</span>
-                            {provenanceAssessment.supporting_evidence.map((item, idx) => (
-                              <div key={idx} className="flex items-start gap-1.5 text-slate-400">
-                                <Check className="w-3 h-3 text-cyan-400 shrink-0 mt-0.5" />
-                                <span>{item}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* BLOCKCHAIN CUSTODY CARD */}
-                  {blockchain && (
-                    <div className="flex flex-col gap-3">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Database className="w-3.5 h-3.5 text-indigo-400" /> Blockchain Custody Proof
-                      </h4>
-                      <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-900 text-xs flex flex-col gap-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-500">Registry Network:</span>
-                          <span className="text-slate-200 font-semibold">{blockchain.chain_name}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-500">Block Height:</span>
-                          <span className="text-indigo-400 font-mono font-bold">#{blockchain.block_number}</span>
-                        </div>
-                        <div className="flex flex-col gap-1 mt-1 border-t border-slate-850 pt-2">
-                          <span className="text-slate-500 text-[10px]">TRANSACTION HASH:</span>
-                          <span className="font-mono text-[9px] text-indigo-300 bg-slate-950 p-1.5 rounded break-all select-all border border-slate-900">
-                            {blockchain.transaction_hash}
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-slate-500 text-[10px]">OWNER SIGNATURE / WALLET:</span>
-                          <span className="font-mono text-[9px] text-slate-300 bg-slate-950 p-1.5 rounded break-all select-all border border-slate-900">
-                            {blockchain.registered_owner}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {blockchainAssessment && (
-                    <div className="flex flex-col gap-3">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Shield className="w-3.5 h-3.5 text-cyan-400" /> Blockchain Assessment
-                      </h4>
-                      <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-900 text-xs flex flex-col gap-2.5">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-500 font-semibold">Ownership Class:</span>
-                          <span className={`font-bold px-2 py-0.5 rounded ${
-                            blockchainAssessment.ownership_classification === "VERIFIED OWNER"
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                              : blockchainAssessment.ownership_classification === "PROBABLE OWNER"
-                                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                                : "bg-slate-800 text-slate-300 border border-slate-700"
-                          }`}>
-                            {blockchainAssessment.ownership_classification}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Confidence:</span>
-                          <span className="font-mono text-cyan-300 font-bold">{blockchainAssessment.confidence_score.toFixed(1)}%</span>
-                        </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Anchor Strength:</span>
-                          <span className="font-mono text-cyan-300 font-bold">{blockchainAssessment.anchor_strength.toFixed(1)}%</span>
-                        </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Method:</span>
-                          <span className="text-slate-300">{blockchainAssessment.verification_method}</span>
-                        </div>
-                        {blockchainAssessment.supporting_evidence.length > 0 && (
-                          <div className="mt-1.5 border-t border-slate-850 pt-2 flex flex-col gap-1.5 text-[10px]">
-                            <span className="text-[9px] text-slate-500 font-bold uppercase">Supporting Evidence</span>
-                            {blockchainAssessment.supporting_evidence.map((item, idx) => (
-                              <div key={idx} className="flex items-start gap-1.5 text-slate-400">
-                                <Check className="w-3 h-3 text-cyan-400 shrink-0 mt-0.5" />
-                                <span>{item}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* DEEPFAKE DETECTION CARD */}
-                  {deepfake && (
-                    <div className="flex flex-col gap-3">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 text-indigo-400" /> Deepfake Analysis
-                      </h4>
-                      <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-900 text-xs flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-300 font-semibold">{deepfake.model_name}</span>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                            deepfake.deepfake_probability >= 0.80 ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" :
-                            deepfake.deepfake_probability >= 0.45 ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
-                            "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                          }`}>
-                            {deepfake.deepfake_probability >= 0.80 ? "CRITICAL RISK (DEEPFAKE)" :
-                             deepfake.deepfake_probability >= 0.45 ? "MODERATE RISK" :
-                             "SECURE / ORIGINAL"}
-                          </span>
-                        </div>
-
-                        {/* Probability Progress Bar */}
-                        <div>
-                          <div className="flex justify-between text-[10px] text-slate-400 mb-1">
-                            <span>Deepfake Probability:</span>
-                            <span className="font-mono font-bold text-slate-200">{(deepfake.deepfake_probability * 100).toFixed(0)}%</span>
-                          </div>
-                          <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
-                            <div 
-                              className={`h-full rounded-full transition-all duration-500 ${
-                                deepfake.deepfake_probability >= 0.80 ? "bg-gradient-to-r from-red-600 to-rose-500" :
-                                deepfake.deepfake_probability >= 0.45 ? "bg-gradient-to-r from-amber-500 to-orange-400" :
-                                "bg-gradient-to-r from-emerald-500 to-teal-400"
-                              }`}
-                              style={{ width: `${deepfake.deepfake_probability * 100}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Heatmap Section */}
-                        {deepfake.heatmap_path && (
-                          <div className="mt-2 flex flex-col gap-1.5">
-                            <span className="text-[10px] text-slate-500 font-bold uppercase">Explainability Heatmap Overlay</span>
-                            <div className="relative h-[160px] rounded-lg overflow-hidden border border-slate-850 bg-slate-950 group">
-                              <Image 
-                                src={deepfake.heatmap_path} 
-                                alt="Explainability Face Heatmap" 
-                                fill
-                                unoptimized
-                                sizes="100vw"
-                                className="object-cover opacity-90 transition-opacity hover:opacity-100"
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                                }}
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent flex items-end p-2.5">
-                                <span className="text-[9px] font-mono text-rose-400/90 font-medium">
-                                  Anomaly Density Profile
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Explainability Breakdown */}
-                        {deepfake.explainability && Object.keys(deepfake.explainability).length > 0 && (
-                          <div className="mt-1 border-t border-slate-850 pt-2 flex flex-col gap-1.5 text-[10px]">
-                            <span className="text-[9px] text-slate-500 font-bold uppercase">Biometric Indicators</span>
-                            {deepfake.explainability.eyebrow_asymmetry_ratio !== undefined && (
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Eyebrow Asymmetry:</span>
-                                <span className="text-slate-300 font-mono">{deepfake.explainability.eyebrow_asymmetry_ratio} (Normal: &lt;1.1)</span>
-                              </div>
-                            )}
-                            {deepfake.explainability.noise_discontinuity_score !== undefined && (
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Boundary Noise Discontinuity:</span>
-                                <span className="text-slate-300 font-mono">{deepfake.explainability.noise_discontinuity_score}</span>
-                              </div>
-                            )}
-                            {deepfake.explainability.temporal_jitter_score !== undefined && (
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Temporal Jitter Score:</span>
-                                <span className="text-slate-300 font-mono">{deepfake.explainability.temporal_jitter_score}</span>
-                              </div>
-                            )}
-                            {deepfake.explainability.lip_sync_lag_ms !== undefined && (
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Lip-Sync Lag:</span>
-                                <span className="text-slate-300 font-mono">{deepfake.explainability.lip_sync_lag_ms} ms</span>
-                              </div>
-                            )}
-                            {deepfake.explainability.spliced_regions && deepfake.explainability.spliced_regions.length > 0 && (
-                              <div>
-                                <span className="text-slate-500">Flagged Regions:</span>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {deepfake.explainability.spliced_regions.map((region: string, i: number) => (
-                                    <span key={i} className="px-1.5 py-0.5 rounded bg-rose-950/40 text-rose-300 border border-rose-900/30 font-mono text-[9px]">
-                                      {region}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {deepfakeAssessment && (
-                    <div className="flex flex-col gap-3">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Shield className="w-3.5 h-3.5 text-cyan-400" /> Deepfake Assessment
-                      </h4>
-                      <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-900 text-xs flex flex-col gap-2.5">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-500 font-semibold">Risk Level:</span>
-                          <span className={`font-bold px-2 py-0.5 rounded ${
-                            deepfakeAssessment.risk_level === "CRITICAL"
-                              ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                              : deepfakeAssessment.risk_level === "HIGH"
-                                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                                : deepfakeAssessment.risk_level === "MEDIUM"
-                                  ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
-                                  : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                          }`}>
-                            {deepfakeAssessment.risk_level}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Model Confidence:</span>
-                          <span className="font-mono text-cyan-300 font-bold">{deepfakeAssessment.confidence_score.toFixed(1)}%</span>
-                        </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Method:</span>
-                          <span className="text-slate-300">{deepfakeAssessment.verification_method}</span>
-                        </div>
-                        {deepfakeAssessment.supporting_evidence.length > 0 && (
-                          <div className="mt-1.5 border-t border-slate-850 pt-2 flex flex-col gap-1.5 text-[10px]">
-                            <span className="text-[9px] text-slate-500 font-bold uppercase">Supporting Evidence</span>
-                            {deepfakeAssessment.supporting_evidence.map((item, idx) => (
-                              <div key={idx} className="flex items-start gap-1.5 text-slate-400">
-                                <Check className="w-3 h-3 text-cyan-400 shrink-0 mt-0.5" />
-                                <span>{item}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* AI GENERATED ATTRIBUTION CARD */}
-                  {aiAttribution && (
-                    <div className="flex flex-col gap-3">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Cpu className="w-3.5 h-3.5 text-indigo-400" /> AI Content Attribution
-                      </h4>
-                      <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-900 text-xs flex flex-col gap-2.5">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-500 font-semibold">Predicted Origin:</span>
-                          <span className={`font-bold px-2 py-0.5 rounded ${
-                            aiAttribution.predicted_source.includes("Human") 
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                              : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
-                          }`}>
-                            {aiAttribution.predicted_source}
-                          </span>
-                        </div>
-
-                        {!aiAttribution.predicted_source.includes("Human") && (
-                          <>
-                            <div className="flex justify-between text-[10px]">
-                              <span className="text-slate-500">Model Confidence:</span>
-                              <span className="font-mono font-bold text-indigo-300">{(aiAttribution.probability * 100).toFixed(0)}%</span>
-                            </div>
-                            
-                            {/* Supporting Indicators */}
-                            {aiAttribution.indicators && (
-                              <div className="mt-1.5 border-t border-slate-850 pt-2 flex flex-col gap-1.5 text-[10px]">
-                                <span className="text-[9px] text-slate-500 font-bold uppercase">Signature Indicators</span>
-                                
-                                {aiAttribution.indicators.metadata_signals && aiAttribution.indicators.metadata_signals.map((sig: string, idx: number) => (
-                                  <div key={idx} className="flex items-start gap-1.5 text-slate-400">
-                                    <Check className="w-3 h-3 text-indigo-400 shrink-0 mt-0.5" />
-                                    <span>{sig}</span>
-                                  </div>
-                                ))}
-
-                                {aiAttribution.indicators.structural_cues && aiAttribution.indicators.structural_cues.map((cue: string, idx: number) => (
-                                  <div key={idx} className="flex items-start gap-1.5 text-slate-400">
-                                    <Check className="w-3 h-3 text-indigo-400 shrink-0 mt-0.5" />
-                                    <span>{cue}</span>
-                                  </div>
-                                ))}
-
-                                {aiAttribution.indicators.generation_parameters && Object.keys(aiAttribution.indicators.generation_parameters).length > 0 && (
-                                  <div className="mt-2 bg-slate-950 p-2 rounded border border-slate-900">
-                                    <p className="text-[9px] text-slate-500 font-bold uppercase mb-1">PROMPT METADATA DECODED</p>
-                                    <div className="max-h-[80px] overflow-y-auto font-mono text-[9px] text-indigo-300 leading-normal break-words">
-                                      {JSON.stringify(aiAttribution.indicators.generation_parameters, null, 2)}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* FORENSICS SUMMARY */}
-                  {forensicsSummary && (
-                    <div className="flex flex-col gap-3">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Shield className="w-3.5 h-3.5 text-cyan-400" /> Unified Forensics Summary
-                      </h4>
-                      <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-900 text-xs flex flex-col gap-2.5">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-500 font-semibold">Verdict:</span>
-                          <span className={`font-bold px-2 py-0.5 rounded ${
-                            forensicsSummary.tampered
-                              ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                              : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                          }`}>
-                            {forensicsSummary.risk_signal.toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Confidence Score:</span>
-                          <span className="font-mono font-bold text-cyan-300">{forensicsSummary.confidence_score.toFixed(1)}%</span>
-                        </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-500">Method:</span>
-                          <span className="text-slate-300">{forensicsSummary.verification_method}</span>
-                        </div>
-                        {forensicsSummary.supporting_evidence.length > 0 && (
-                          <div className="mt-1.5 border-t border-slate-850 pt-2 flex flex-col gap-1.5 text-[10px]">
-                            <span className="text-[9px] text-slate-500 font-bold uppercase">Supporting Evidence</span>
-                            {forensicsSummary.supporting_evidence.map((item, idx) => (
-                              <div key={idx} className="flex items-start gap-1.5 text-slate-400">
-                                <Check className="w-3 h-3 text-cyan-400 shrink-0 mt-0.5" />
-                                <span>{item}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {forensicsSummary.modified_regions.length > 0 && (
-                          <div className="mt-1 bg-slate-950 p-2 rounded border border-slate-900">
-                            <p className="text-[9px] text-slate-500 font-bold uppercase mb-1">Modified Regions</p>
-                            <div className="flex flex-wrap gap-1">
-                              {forensicsSummary.modified_regions.map((region, idx) => (
-                                <span key={idx} className="px-1.5 py-0.5 rounded bg-cyan-950/40 text-cyan-300 border border-cyan-900/30 font-mono text-[9px]">
-                                  {region}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* FORENSICS RESULTS (PHASE 2) */}
-                  {forensics.length > 0 && (
-                    <div className="flex flex-col gap-3">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Cpu className="w-3.5 h-3.5 text-indigo-400" /> Deep Forensic Scans
-                      </h4>
-                      <div className="flex flex-col gap-2.5">
-                        {forensics.map((f) => (
-                          <div key={f.id} className="p-3 rounded-lg bg-slate-900/60 border border-slate-900 text-xs">
-                            <div className="flex items-center justify-between font-bold mb-1">
-                              <span className="text-slate-300">{f.engine_name}</span>
-                              <span className={`text-[10px] px-2 py-0.5 rounded ${
-                                f.tampered 
-                                  ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" 
-                                  : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                              }`}>
-                                {f.tampered ? "ANOMALY DETECTED" : "VERIFIED AUTHENTIC"}
-                              </span>
-                            </div>
-                            
-                            <div className="flex justify-between text-[10px] text-slate-500 mt-1.5">
-                              <span>Forensic Confidence:</span>
-                              <span className="font-mono text-slate-400">{f.confidence}%</span>
-                            </div>
-
-                            {f.output_details && f.output_details.reasons && (
-                              <ul className="list-disc list-inside text-[10px] text-slate-400 mt-2 space-y-1">
-                                {f.output_details.reasons.map((r: string, idx: number) => (
-                                  <li key={idx} className="leading-tight">{r}</li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Hash Summary */}
-                  {selectedHashes && (
-                    <div className="flex flex-col gap-3">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Binary className="w-3.5 h-3.5 text-indigo-400" /> Fingerprints
-                      </h4>
-                      <div className="flex flex-col gap-2 font-mono text-[10px]">
-                        <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-900">
-                          <p className="text-slate-500 font-bold uppercase mb-0.5">SHA256</p>
-                          <p className="text-slate-300 break-all select-all">{selectedHashes.sha256}</p>
-                        </div>
-                        <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-900">
-                          <p className="text-slate-500 font-bold uppercase mb-0.5">MD5</p>
-                          <p className="text-slate-300 break-all select-all">{selectedHashes.md5}</p>
-                        </div>
-                        {selectedHashes.p_hash && (
-                          <div className="bg-indigo-950/20 p-2 rounded-lg border border-indigo-900/20">
-                            <p className="text-indigo-400 font-bold uppercase mb-0.5">Perceptual pHash</p>
-                            <p className="text-indigo-200 break-all select-all">{selectedHashes.p_hash}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Metadata fields */}
-                  {selectedMeta && (
-                    <div className="flex flex-col gap-3">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Compass className="w-3.5 h-3.5 text-indigo-400" /> Extracted Properties
-                      </h4>
-                      <div className="flex flex-col gap-2 text-[11px] bg-slate-900/40 p-3.5 rounded-xl border border-slate-900">
-                        {selectedMeta.creator && (
-                          <div className="flex justify-between">
-                            <span className="text-slate-500">Creator/Author:</span>
-                            <span className="text-slate-300 font-medium">{selectedMeta.creator}</span>
-                          </div>
-                        )}
-                        {selectedMeta.software_used && (
-                          <div className="flex justify-between">
-                            <span className="text-slate-500">Software Sign:</span>
-                            <span className="text-slate-300 font-medium truncate max-w-[150px]">{selectedMeta.software_used}</span>
-                          </div>
-                        )}
-                        {selectedMeta.created_datetime && (
-                          <div className="flex justify-between">
-                            <span className="text-slate-500">Creation Date:</span>
-                            <span className="text-slate-300 font-medium">
-                              {new Date(selectedMeta.created_datetime).toLocaleDateString()}
-                            </span>
-                          </div>
-                        )}
-                        <div className="border-t border-slate-900 mt-2 pt-2">
-                          <p className="text-[10px] text-slate-500 font-semibold mb-1">RAW STRUCTURAL METADATA</p>
-                          <div className="bg-slate-950 p-2 rounded overflow-x-auto max-h-[100px] text-[9px] font-mono text-indigo-300">
-                            {JSON.stringify(selectedMeta.raw_metadata, null, 2)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Chain of custody logs timeline */}
-                  <div className="flex flex-col gap-3">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-indigo-400" /> Chain of Custody Audit
-                    </h4>
-                    <div className="flex flex-col gap-3 relative pl-3 border-l border-slate-900">
-                      {timeline.map((log) => (
-                        <div key={log.id} className="relative">
-                          <div className="absolute -left-[17px] top-1 w-2 h-2 rounded-full bg-indigo-500" />
-                          <p className="text-[11px] font-bold text-slate-300">{log.operation}</p>
-                          <p className="text-[9px] text-slate-500 mt-0.5">
-                            By {log.actor} • {new Date(log.timestamp).toLocaleTimeString()}
-                          </p>
-                          <p className="text-[9px] font-mono text-indigo-400/80 truncate mt-1">SHA: {log.hash_value}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                </div>
-              ) : (
-                <div className="glass-panel rounded-2xl p-8 text-center flex flex-col items-center justify-center min-h-[400px]">
-                  <Compass className="w-12 h-12 text-slate-700 animate-pulse-slow mb-4" />
-                  <p className="text-sm font-semibold text-slate-400">Select Seized Evidence Asset</p>
-                  <p className="text-xs text-slate-500 mt-1.5 max-w-[200px] mx-auto">
-                    Inspect cryptographic hashes, EXIF parameters, and forensic audits.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </main>
-      </div>
-
-      {/* NEW CASE MODAL */}
-      {showNewCaseModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="glass-panel w-full max-w-md rounded-2xl p-6 flex flex-col gap-4 border border-indigo-500/20">
-            <h3 className="text-md font-bold">Open New Cyber Investigation Case</h3>
-            
-            <div className="flex flex-col gap-3 mt-2">
-              <label className="text-xs text-slate-400 font-semibold uppercase">Case Title</label>
-              <input
-                type="text"
-                placeholder="e.g. Altered Contract Detection"
-                value={newCaseTitle}
-                onChange={(e) => setNewCaseTitle(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/50"
-              />
-
-              <label className="text-xs text-slate-400 font-semibold uppercase mt-2">Description</label>
-              <textarea
-                placeholder="Details about the acquisition source, targets, and goals..."
-                value={newCaseDesc}
-                onChange={(e) => setNewCaseDesc(e.target.value)}
-                rows={3}
-                className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/50"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-3 mt-4">
-              <button
-                onClick={() => setShowNewCaseModal(false)}
-                className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-850 text-xs text-slate-400 transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateCase}
-                className="px-4 py-2 rounded-lg bg-indigo-650 hover:bg-indigo-600 text-xs text-white font-semibold transition-all"
-              >
-                Initialize Case
-              </button>
-            </div>
-          </div>
+    <div className="stat-card">
+      <div className="stat-top">
+        <div className="stat-icon" style={{ color: tone }}>
+          <Icon size={16} />
         </div>
-      )}
+        <span className="stat-label">{label}</span>
+      </div>
+      <div className="stat-value">{value}</div>
+      <div className="stat-sub">{subtext}</div>
     </div>
   );
 }
 
+function Panel({
+  title,
+  subtitle,
+  icon: Icon,
+  actions,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: LucideIcon;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="panel">
+      <header className="panel-header">
+        <div className="panel-title-wrap">
+          {Icon ? <Icon size={15} className="panel-title-icon" /> : null}
+          <div>
+            <div className="panel-title">{title}</div>
+            {subtitle ? <div className="panel-subtitle">{subtitle}</div> : null}
+          </div>
+        </div>
+        {actions ? <div className="panel-actions">{actions}</div> : null}
+      </header>
+      <div className="panel-body">{children}</div>
+    </section>
+  );
+}
 
+export default function Page() {
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [loginForm, setLoginForm] = useState<LoginForm>({
+    email: "",
+    password: "",
+    fullName: "",
+    organizationName: "",
+  });
+
+  const [selectedTab, setSelectedTab] = useState<TabKey>("overview");
+  const [cases, setCases] = useState<CaseItem[]>([]);
+  const [caseEvidence, setCaseEvidence] = useState<Record<number, EvidenceItem[]>>({});
+  const [selectedCaseId, setSelectedCaseId] = useState<number | null>(null);
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisBundle | null>(null);
+  const [timeline, setTimeline] = useState<AuditLogItem[]>([]);
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [serviceHealth, setServiceHealth] = useState<Record<ServiceName, HealthItem>>({
+    auth: { name: "Auth", status: "unknown" },
+    cases: { name: "Cases", status: "unknown" },
+    evidence: { name: "Evidence", status: "unknown" },
+    events: { name: "Events", status: "unknown" },
+    analysis: { name: "Analysis", status: "unknown" },
+    provenance: { name: "Provenance", status: "unknown" },
+    blockchain: { name: "Blockchain", status: "unknown" },
+    report: { name: "Report", status: "unknown" },
+  });
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState("Connect to the backend to start live monitoring.");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [severityFilter, setSeverityFilter] = useState<"ALL" | Severity>("ALL");
+  const [sourceFilter, setSourceFilter] = useState("ALL");
+  const [createCaseForm, setCreateCaseForm] = useState<CreateCaseForm>({ title: "", description: "" });
+  const [uploadCaseId, setUploadCaseId] = useState<string>("");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const selectedEvidenceRef = useRef<string | null>(null);
+  const authTokenRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedToken = window.localStorage.getItem(AUTH_TOKEN_KEY);
+    const savedEmail = window.localStorage.getItem(AUTH_EMAIL_KEY);
+    const savedSession = window.localStorage.getItem(AUTH_SESSION_KEY);
+    if (savedToken) {
+      setAuthToken(savedToken);
+      authTokenRef.current = savedToken;
+    }
+    if (savedEmail) setAuthEmail(savedEmail);
+    if (savedSession) setSessionId(savedSession);
+  }, []);
+
+  useEffect(() => {
+    authTokenRef.current = authToken;
+  }, [authToken]);
+
+  useEffect(() => {
+    selectedEvidenceRef.current = selectedEvidenceId;
+  }, [selectedEvidenceId]);
+
+  useEffect(() => {
+    if (!authToken) return;
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(AUTH_TOKEN_KEY, authToken);
+      window.localStorage.setItem(AUTH_EMAIL_KEY, authEmail);
+      if (sessionId) window.localStorage.setItem(AUTH_SESSION_KEY, sessionId);
+    }
+  }, [authToken, authEmail, sessionId]);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!authToken) {
+      setCases([]);
+      setCaseEvidence({});
+      setSelectedCaseId(null);
+      setSelectedEvidenceId(null);
+      setAnalysis(null);
+      setTimeline([]);
+      return;
+    }
+
+    void loadAllDashboardData();
+    const timer = window.setInterval(() => {
+      void loadEvents();
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [authToken]);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!authToken) return;
+    const currentCaseEvidence = selectedCaseId ? caseEvidence[selectedCaseId] ?? [] : [];
+    if (!currentCaseEvidence.length) {
+      setSelectedEvidenceId(null);
+      return;
+    }
+    if (!selectedEvidenceId || !currentCaseEvidence.some((item) => item.id === selectedEvidenceId)) {
+      setSelectedEvidenceId(currentCaseEvidence[0].id);
+    }
+  }, [authToken, selectedCaseId, caseEvidence, selectedEvidenceId]);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!authToken || !selectedEvidenceId) return;
+    void loadEvidenceDetails(selectedEvidenceId);
+  }, [authToken, selectedEvidenceId]);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!authToken) return;
+    let closed = false;
+    const source = new EventSource(`${apiPath("/events/stream")}?token=${encodeURIComponent(authToken)}`);
+    source.onmessage = (event) => {
+      if (closed) return;
+      try {
+        const raw = JSON.parse(event.data) as Record<string, unknown>;
+        const normalized = normalizeEvent(raw);
+        setEvents((current) => {
+          if (current.some((item) => item.id === normalized.id)) return current;
+          return [normalized, ...current].slice(0, 250);
+        });
+        if (normalized.event_type.toUpperCase().includes("CASE") || normalized.event_type.toUpperCase().includes("UPLOAD") || normalized.event_type.toUpperCase().includes("ANALYZE")) {
+          void loadCasesAndEvidence();
+        }
+        if (normalized.evidence_id && normalized.evidence_id === selectedEvidenceRef.current) {
+          void loadEvidenceDetails(normalized.evidence_id);
+        }
+      } catch {
+        // Ignore malformed stream items and keep the live connection alive.
+      }
+    };
+    source.onerror = () => {
+      source.close();
+    };
+    return () => {
+      closed = true;
+      source.close();
+    };
+  }, [authToken]);
+
+  const selectedEvidence = selectedCaseId ? (caseEvidence[selectedCaseId] ?? []).find((item) => item.id === selectedEvidenceId) ?? null : null;
+  const trustScoreBase = safeNumber(analysis?.trust_assessment?.trust_score ?? analysis?.evidence?.trust_score, 0);
+
+  const filteredEvents = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    return events.filter((event) => {
+      const sevMatch = severityFilter === "ALL" || event.severity === severityFilter;
+      const sourceMatch = sourceFilter === "ALL" || event.source === sourceFilter;
+      const queryMatch =
+        !query ||
+        [event.message, event.event_type, event.source, event.user_email ?? "", event.evidence_id ?? "", event.case_id ? String(event.case_id) : ""]
+          .join(" ")
+          .toLowerCase()
+          .includes(query);
+      return sevMatch && sourceMatch && queryMatch;
+    });
+  }, [events, searchTerm, severityFilter, sourceFilter]);
+
+  const highRiskEvidence = useMemo(() => {
+    const allEvidence = Object.values(caseEvidence).flat();
+    return [...allEvidence].sort((a, b) => {
+      const rank = (value: string) => {
+        switch (value.toUpperCase()) {
+          case "CRITICAL":
+            return 4;
+          case "HIGH":
+            return 3;
+          case "MEDIUM":
+            return 2;
+          case "LOW":
+            return 1;
+          default:
+            return 0;
+        }
+      };
+      return rank(b.risk_level) - rank(a.risk_level) || a.trust_score - b.trust_score;
+    }).slice(0, 5);
+  }, [caseEvidence]);
+
+  const eventSources = useMemo(() => {
+    const sources = new Set(events.map((event) => event.source));
+    return ["ALL", ...Array.from(sources).sort()];
+  }, [events]);
+
+  const metrics = useMemo(() => {
+    const allEvidence = Object.values(caseEvidence).flat();
+    const activeCases = cases.filter((item) => !["closed", "archived"].includes((item.status ?? "").toLowerCase())).length;
+    const criticalEvidence = allEvidence.filter((item) => item.risk_level.toUpperCase() === "CRITICAL").length;
+    const blockchainVerified = allEvidence.filter((item) => analysis?.blockchain || item.status.toLowerCase() === "completed").length;
+    const avgTrust = allEvidence.length ? allEvidence.reduce((acc, item) => acc + safeNumber(item.trust_score, 0), 0) / allEvidence.length : trustScoreBase;
+    const recentEvents = events.slice(0, 100);
+    const criticalEvents = recentEvents.filter((event) => event.severity === "CRITICAL").length;
+    return {
+      cases: cases.length,
+      activeCases,
+      evidence: allEvidence.length,
+      criticalEvidence,
+      blockchainVerified,
+      avgTrust,
+      events: events.length,
+      criticalEvents,
+    };
+  }, [analysis?.blockchain, cases, caseEvidence, events, trustScoreBase]);
+
+  async function authedRequest(path: string, init: RequestInit = {}, service?: ServiceName) {
+    const started = performance.now();
+    try {
+      const headers = new Headers(init.headers ?? {});
+      if (!(init.body instanceof FormData)) {
+        headers.set("Content-Type", "application/json");
+      }
+      if (authTokenRef.current) {
+        headers.set("Authorization", `Bearer ${authTokenRef.current}`);
+      }
+      const response = await fetch(apiPath(path), { ...init, headers, cache: "no-store" });
+      const elapsed = performance.now() - started;
+      const text = await response.text();
+      let data: unknown = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
+      }
+      if (service) {
+        setServiceHealth((current) => ({
+          ...current,
+          [service]: {
+            name: current[service]?.name ?? titleCase(service),
+            status: response.ok ? "online" : "offline",
+            latencyMs: elapsed,
+            checkedAt: new Date().toISOString(),
+            detail: response.ok ? "Connected" : extractMessage(data),
+          },
+        }));
+      }
+      if (!response.ok) {
+        throw new Error(extractMessage(data));
+      }
+      return { response, data };
+    } catch (error) {
+      const elapsed = performance.now() - started;
+      if (service) {
+        setServiceHealth((current) => ({
+          ...current,
+          [service]: {
+            name: current[service]?.name ?? titleCase(service),
+            status: "offline",
+            latencyMs: elapsed,
+            checkedAt: new Date().toISOString(),
+            detail: extractMessage(error),
+          },
+        }));
+      }
+      throw error;
+    }
+  }
+
+  async function loadEvents() {
+    const { data } = await authedRequest("/events", {}, "events");
+    const payload = Array.isArray(data) ? data : safeArray<Record<string, unknown>>((data as Record<string, unknown>)?.events ?? (data as Record<string, unknown>)?.items ?? data);
+    const normalized = payload.map((item) => normalizeEvent(item));
+    setEvents((current) => {
+      const seen = new Set(current.map((item) => item.id));
+      const merged = [...normalized, ...current.filter((item) => !normalized.some((entry) => entry.id === item.id))];
+      return merged.filter((item) => !seen.has(item.id) || normalized.some((entry) => entry.id === item.id)).slice(0, 250);
+    });
+  }
+
+  async function loadCasesAndEvidence() {
+    setStatusMessage("Refreshing live cases and evidence from the backend.");
+    const { data } = await authedRequest("/cases", {}, "cases");
+    const fetchedCases = safeArray<CaseItem>(data).sort((a, b) => a.case_number.localeCompare(b.case_number));
+    setCases(fetchedCases);
+
+    const evidenceEntries = await Promise.all(
+      fetchedCases.map(async (item) => {
+        try {
+          const { data: evidenceData } = await authedRequest(`/cases/${item.id}/evidence`, {}, "evidence");
+          return [item.id, safeArray<EvidenceItem>(evidenceData)] as const;
+        } catch {
+          return [item.id, [] as EvidenceItem[]] as const;
+        }
+      }),
+    );
+    const nextEvidence = Object.fromEntries(evidenceEntries);
+    setCaseEvidence(nextEvidence);
+    if (!selectedCaseId && fetchedCases.length > 0) {
+      setSelectedCaseId(fetchedCases[0].id);
+    }
+    if (selectedCaseId && !fetchedCases.some((item) => item.id === selectedCaseId) && fetchedCases.length > 0) {
+      setSelectedCaseId(fetchedCases[0].id);
+    }
+    setStatusMessage(`Loaded ${fetchedCases.length} cases and ${Object.values(nextEvidence).flat().length} evidence items.`);
+  }
+
+  async function loadEvidenceDetails(evidenceId: string) {
+    setBusyAction(`Loading ${evidenceId}`);
+    try {
+      const [analysisResp, timelineResp] = await Promise.all([
+        authedRequest(`/analysis/${evidenceId}`, {}, "analysis"),
+        authedRequest(`/timeline/${evidenceId}`, {}, "analysis"),
+      ]);
+      setAnalysis(analysisResp.data as AnalysisBundle);
+      setTimeline(safeArray<AuditLogItem>(timelineResp.data));
+      setStatusMessage(`Evidence ${evidenceId} loaded from live backend state.`);
+    } catch (error) {
+      setAnalysis(null);
+      setTimeline([]);
+      setStatusMessage(extractMessage(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function loadAllDashboardData() {
+    try {
+      await Promise.all([loadCasesAndEvidence(), loadEvents()]);
+    } catch (error) {
+      setStatusMessage(extractMessage(error));
+      if (extractMessage(error).toLowerCase().includes("validate credentials")) {
+        handleLogout();
+      }
+    }
+  }
+
+  async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const payload =
+        authMode === "login"
+          ? {
+              email: loginForm.email,
+              password: loginForm.password,
+            }
+          : {
+              email: loginForm.email,
+              password: loginForm.password,
+              full_name: loginForm.fullName,
+              organization_name: loginForm.organizationName,
+            };
+      const { data } = await authedRequest(
+        authMode === "login" ? "/auth/login" : "/auth/register",
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        },
+        "auth",
+      );
+      const token = safeString((data as Record<string, unknown>).access_token);
+      const returnedSession = safeString((data as Record<string, unknown>).session_id);
+      if (!token) throw new Error("Authentication response did not include an access token.");
+      setAuthToken(token);
+      authTokenRef.current = token;
+      setSessionId(returnedSession || null);
+      setAuthEmail(loginForm.email);
+      setStatusMessage(authMode === "login" ? "Signed in and connected to live backend data." : "Account created and session initialized.");
+      setAuthError("");
+      await loadAllDashboardData();
+    } catch (error) {
+      setAuthError(extractMessage(error));
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  function handleLogout() {
+    setAuthToken(null);
+    setSessionId(null);
+    setAuthError("");
+    setStatusMessage("Signed out.");
+    setCases([]);
+    setCaseEvidence({});
+    setSelectedCaseId(null);
+    setSelectedEvidenceId(null);
+    setAnalysis(null);
+    setTimeline([]);
+    setEvents([]);
+    authTokenRef.current = null;
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(AUTH_TOKEN_KEY);
+      window.localStorage.removeItem(AUTH_EMAIL_KEY);
+      window.localStorage.removeItem(AUTH_SESSION_KEY);
+    }
+  }
+
+  async function handleCreateCase(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!createCaseForm.title.trim()) return;
+    setBusyAction("create-case");
+    try {
+      await authedRequest(
+        "/cases",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            title: createCaseForm.title.trim(),
+            description: createCaseForm.description.trim() || null,
+          }),
+        },
+        "cases",
+      );
+      setCreateCaseForm({ title: "", description: "" });
+      await loadCasesAndEvidence();
+      setStatusMessage("Case created through the backend and synchronized in the UI.");
+    } catch (error) {
+      setStatusMessage(extractMessage(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleUpload(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!uploadFile || !uploadCaseId) return;
+    setBusyAction("upload");
+    try {
+      const form = new FormData();
+      form.append("case_id", uploadCaseId);
+      form.append("file", uploadFile);
+      const { data } = await authedRequest(
+        "/upload",
+        {
+          method: "POST",
+          body: form,
+        },
+        "evidence",
+      );
+      const evidenceId = safeString((data as Record<string, unknown>).evidence_id);
+      setUploadFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      await loadCasesAndEvidence();
+      if (evidenceId) {
+        setSelectedCaseId(Number(uploadCaseId));
+        setSelectedEvidenceId(evidenceId);
+        await loadEvidenceDetails(evidenceId);
+      }
+      setStatusMessage(`Evidence uploaded and registered: ${evidenceId || "completed"}.`);
+    } catch (error) {
+      setStatusMessage(extractMessage(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleAnalyze(evidenceId: string) {
+    setBusyAction(`analyze-${evidenceId}`);
+    try {
+      await authedRequest(`/analyze?evidence_id=${encodeURIComponent(evidenceId)}`, { method: "POST" }, "analysis");
+      await loadEvidenceDetails(evidenceId);
+      await loadCasesAndEvidence();
+      setStatusMessage(`Analysis completed for ${evidenceId}.`);
+    } catch (error) {
+      setStatusMessage(extractMessage(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleVerifyProvenance(evidenceId: string) {
+    setBusyAction(`provenance-${evidenceId}`);
+    try {
+      await authedRequest(`/verify-c2pa?evidence_id=${encodeURIComponent(evidenceId)}`, { method: "POST" }, "provenance");
+      await loadEvidenceDetails(evidenceId);
+      setStatusMessage(`Provenance refreshed for ${evidenceId}.`);
+    } catch (error) {
+      setStatusMessage(extractMessage(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleRegisterBlockchain(evidenceId: string) {
+    setBusyAction(`blockchain-${evidenceId}`);
+    try {
+      await authedRequest(`/blockchain/register?evidence_id=${encodeURIComponent(evidenceId)}`, { method: "POST" }, "blockchain");
+      await loadEvidenceDetails(evidenceId);
+      await loadCasesAndEvidence();
+      setStatusMessage(`Blockchain registration completed for ${evidenceId}.`);
+    } catch (error) {
+      setStatusMessage(extractMessage(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleVerifyLedger(evidenceId: string) {
+    setBusyAction(`ledger-${evidenceId}`);
+    try {
+      await authedRequest(`/verify-ledger/${encodeURIComponent(evidenceId)}`, {}, "blockchain");
+      await loadEvidenceDetails(evidenceId);
+      setStatusMessage(`Ledger verification refreshed for ${evidenceId}.`);
+    } catch (error) {
+      setStatusMessage(extractMessage(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleTrustRefresh(evidenceId: string) {
+    setBusyAction(`trust-${evidenceId}`);
+    try {
+      await authedRequest(`/trust-score/${encodeURIComponent(evidenceId)}`, {}, "analysis");
+      await loadEvidenceDetails(evidenceId);
+      setStatusMessage(`Trust score refreshed for ${evidenceId}.`);
+    } catch (error) {
+      setStatusMessage(extractMessage(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleReportDownload(evidenceId: string) {
+    setBusyAction(`report-${evidenceId}`);
+    try {
+      const started = performance.now();
+      const response = await fetch(apiPath(`/report/${encodeURIComponent(evidenceId)}`), {
+        method: "GET",
+        headers: {
+          Authorization: authTokenRef.current ? `Bearer ${authTokenRef.current}` : "",
+        },
+      });
+      const elapsed = performance.now() - started;
+      setServiceHealth((current) => ({
+        ...current,
+        report: {
+          name: "Report",
+          status: response.ok ? "online" : "offline",
+          latencyMs: elapsed,
+          checkedAt: new Date().toISOString(),
+          detail: response.ok ? "PDF generated" : "Report generation failed",
+        },
+      }));
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || "Failed to generate report");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${evidenceId}-report.pdf`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setStatusMessage(`Report generated for ${evidenceId}.`);
+    } catch (error) {
+      setStatusMessage(extractMessage(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  function serviceCardTone(status: HealthItem["status"]) {
+    switch (status) {
+      case "online":
+        return "var(--success)";
+      case "degraded":
+        return "var(--warn)";
+      case "offline":
+        return "var(--crit)";
+      default:
+        return "var(--muted2)";
+    }
+  }
+
+  const tabItems: Array<{ key: TabKey; label: string; icon: LucideIcon; badge?: string }> = [
+    { key: "overview", label: "Overview", icon: Activity },
+    { key: "events", label: "Event Stream", icon: TerminalSquare, badge: String(events.length) },
+    { key: "threats", label: "Threat Intel", icon: Radar },
+    { key: "cases", label: "Investigations", icon: FolderOpen },
+    { key: "deepfake", label: "Deepfake", icon: Bot },
+    { key: "mitre", label: "MITRE ATT&CK", icon: ShieldAlert },
+    { key: "blockchain", label: "Blockchain", icon: Link2 },
+    { key: "trust", label: "Trust Intel", icon: ShieldHalf },
+    { key: "alerts", label: "Alerts", icon: AlertTriangle, badge: String(metrics.criticalEvents) },
+    { key: "services", label: "Services", icon: Server },
+    { key: "provenance", label: "Provenance", icon: Fingerprint },
+  ];
+
+  if (!authToken) {
+    return (
+      <div className="auth-shell">
+        <div className="auth-hero panel">
+          <div className="auth-badge">
+            <ShieldCheck size={15} />
+            Real-time DeepTrace SOC
+          </div>
+          <h1>Live forensic dashboard for real backend data.</h1>
+          <p>
+            The old mock UI has been replaced with a live interface that only renders backend-authenticated
+            cases, evidence, events, analysis results, provenance, blockchain state, and reports.
+          </p>
+          <div className="auth-metrics">
+            <StatCard label="Backend link" value="Inactive" subtext="Sign in to connect" icon={Globe2} tone="var(--muted2)" />
+            <StatCard label="Realtime stream" value="Ready" subtext="SSE + polling fallback" icon={Activity} tone="var(--cyan)" />
+            <StatCard label="Forensic scope" value="Full stack" subtext="No mocked data" icon={Shield} tone="var(--success)" />
+          </div>
+        </div>
+
+        <div className="panel auth-form-panel">
+          <div className="auth-toggle">
+            <button className={`tab-btn ${authMode === "login" ? "active" : ""}`} onClick={() => setAuthMode("login")} type="button">
+              Sign in
+            </button>
+            <button className={`tab-btn ${authMode === "register" ? "active" : ""}`} onClick={() => setAuthMode("register")} type="button">
+              Create account
+            </button>
+          </div>
+
+          <form className="stack" onSubmit={handleAuthSubmit}>
+            {authMode === "register" ? (
+              <>
+                <label className="field">
+                  <span>Full name</span>
+                  <input
+                    className="input"
+                    value={loginForm.fullName}
+                    onChange={(event) => setLoginForm((current) => ({ ...current, fullName: event.target.value }))}
+                    placeholder="Analyst name"
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>Organization</span>
+                  <input
+                    className="input"
+                    value={loginForm.organizationName}
+                    onChange={(event) => setLoginForm((current) => ({ ...current, organizationName: event.target.value }))}
+                    placeholder="Agency or team"
+                    required
+                  />
+                </label>
+              </>
+            ) : null}
+            <label className="field">
+              <span>Email</span>
+              <input
+                className="input"
+                type="email"
+                value={loginForm.email}
+                onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
+                placeholder="analyst@org.local"
+                required
+              />
+            </label>
+            <label className="field">
+              <span>Password</span>
+              <input
+                className="input"
+                type="password"
+                value={loginForm.password}
+                onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
+                placeholder="••••••••"
+                required
+              />
+            </label>
+
+            {authError ? <div className="status-banner danger">{authError}</div> : null}
+
+            <button className="btn primary" type="submit" disabled={authBusy}>
+              {authBusy ? <Loader2 size={16} className="spin" /> : authMode === "login" ? <ShieldCheck size={16} /> : <Users size={16} />}
+              {authBusy ? "Connecting..." : authMode === "login" ? "Sign in to live backend" : "Create live account"}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="dashboard-shell">
+      <header className="dashboard-header">
+        <div className="brand-block">
+          <div className="brand-mark">
+            <ShieldCheck size={16} />
+          </div>
+          <div>
+            <div className="brand-title">DeepTrace SOC</div>
+            <div className="brand-subtitle">Live forensic intelligence and trust operations</div>
+          </div>
+        </div>
+
+        <div className="header-pill-row">
+          <span className="pill green">
+            <span className="pulse" />
+            Backend connected
+          </span>
+          <span className="pill cyan">
+            <Activity size={12} />
+            {events.length} events
+          </span>
+          <span className="pill warn">
+            <TriangleAlert size={12} />
+            {metrics.criticalEvents} critical
+          </span>
+          <span className="pill muted">
+            <Clock3 size={12} />
+            {sessionId ? `Session ${sessionId.slice(0, 8)}` : "Session active"}
+          </span>
+        </div>
+
+        <div className="header-user">
+          <span>
+            <Users size={12} /> {authEmail || "signed-in analyst"}
+          </span>
+          <button className="btn ghost small" onClick={handleLogout} type="button">
+            <LogOut size={14} />
+            Sign out
+          </button>
+        </div>
+      </header>
+
+      <nav className="tab-bar">
+        {tabItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.key}
+              className={`tab-btn ${selectedTab === item.key ? "active" : ""}`}
+              type="button"
+              onClick={() => setSelectedTab(item.key)}
+            >
+              <Icon size={14} />
+              {item.label}
+              {item.badge ? <span className="tab-badge">{item.badge}</span> : null}
+            </button>
+          );
+        })}
+      </nav>
+
+      <main className="dashboard-main">
+        <div className="workspace-toolbar panel">
+          <div className="toolbar-left">
+            <div className="toolbar-title">
+              <Sparkles size={14} />
+              Live backend operations
+            </div>
+            <div className="toolbar-status">{statusMessage}</div>
+          </div>
+          <div className="toolbar-actions">
+            <label className="inline-field">
+              <span>Case</span>
+              <select className="input" value={selectedCaseId ?? ""} onChange={(event) => setSelectedCaseId(event.target.value ? Number(event.target.value) : null)}>
+                <option value="">Select case</option>
+                {cases.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.case_number} · {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="btn ghost" type="button" onClick={() => void loadAllDashboardData()}>
+              <RefreshCw size={14} />
+              Refresh all
+            </button>
+          </div>
+        </div>
+
+        <div className="action-grid">
+          <Panel title="Create case" subtitle="Real backend case creation" icon={FolderOpen}>
+            <form className="stack" onSubmit={handleCreateCase}>
+              <label className="field">
+                <span>Case title</span>
+                <input
+                  className="input"
+                  value={createCaseForm.title}
+                  onChange={(event) => setCreateCaseForm((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="Election video forgery"
+                  required
+                />
+              </label>
+              <label className="field">
+                <span>Description</span>
+                <textarea
+                  className="input textarea"
+                  value={createCaseForm.description}
+                  onChange={(event) => setCreateCaseForm((current) => ({ ...current, description: event.target.value }))}
+                  placeholder="Investigation summary and objectives"
+                />
+              </label>
+              <button className="btn primary" type="submit" disabled={busyAction === "create-case"}>
+                {busyAction === "create-case" ? <Loader2 size={16} className="spin" /> : <FolderOpen size={16} />}
+                Open case
+              </button>
+            </form>
+          </Panel>
+
+          <Panel title="Upload evidence" subtitle="Triggers the live ingestion pipeline" icon={Upload}>
+            <form className="stack" onSubmit={handleUpload}>
+              <label className="field">
+                <span>Target case</span>
+                <select className="input" value={uploadCaseId} onChange={(event) => setUploadCaseId(event.target.value)} required>
+                  <option value="">Choose case</option>
+                  {cases.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.case_number}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>File</span>
+                <input
+                  ref={fileInputRef}
+                  className="input"
+                  type="file"
+                  onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+                  required
+                />
+              </label>
+              <button className="btn primary" type="submit" disabled={busyAction === "upload"}>
+                {busyAction === "upload" ? <Loader2 size={16} className="spin" /> : <Upload size={16} />}
+                Upload to backend
+              </button>
+            </form>
+          </Panel>
+
+          <Panel title="Live health" subtitle="Measured from real API calls" icon={Server}>
+            <div className="health-grid">
+              {(["auth", "cases", "evidence", "events", "analysis", "provenance", "blockchain", "report"] as ServiceName[]).map((key) => {
+                const item = serviceHealth[key];
+                return (
+                  <div className="health-card" key={key}>
+                    <div className="health-name">{item.name}</div>
+                    <div className="health-row">
+                      <span className="dot" style={{ background: serviceCardTone(item.status) }} />
+                      <span style={{ color: serviceCardTone(item.status) }}>{titleCase(item.status)}</span>
+                    </div>
+                    <div className="health-metrics">
+                      <span>Latency</span>
+                      <strong>{item.latencyMs ? `${Math.round(item.latencyMs)} ms` : "N/A"}</strong>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Panel>
+        </div>
+
+        {selectedTab === "overview" ? (
+          <div className="content-grid">
+            <div className="stats-grid">
+              <StatCard label="Total cases" value={String(metrics.cases)} subtext="Live from /cases" icon={FolderOpen} />
+              <StatCard label="Active cases" value={String(metrics.activeCases)} subtext="Open investigations" icon={Activity} tone="var(--cyan)" />
+              <StatCard label="Evidence items" value={String(metrics.evidence)} subtext="Fetched from case APIs" icon={FileText} tone="var(--warn)" />
+              <StatCard label="Critical evidence" value={String(metrics.criticalEvidence)} subtext="Highest risk items" icon={ShieldAlert} tone="var(--crit)" />
+              <StatCard label="Events" value={String(metrics.events)} subtext="Streamed and polled" icon={TerminalSquare} tone="var(--primary)" />
+              <StatCard label="Avg trust" value={`${metrics.avgTrust.toFixed(1)}%`} subtext="Computed from backend data" icon={ShieldHalf} tone="var(--success)" />
+            </div>
+
+            <div className="grid-two">
+              <Panel
+                title="Live event stream"
+                subtitle="Realtime events from /events/stream"
+                icon={Activity}
+                actions={
+                  <button className="btn ghost small" type="button" onClick={() => void loadEvents()}>
+                    <RefreshCw size={13} />
+                    Refresh
+                  </button>
+                }
+              >
+                <div className="event-stream">
+                  {events.slice(0, 14).map((event) => (
+                    <div className="event-row" key={event.id}>
+                      <span className="event-time">{new Date(event.created_at).toLocaleTimeString()}</span>
+                      <span className="event-severity" style={{ color: severityColor(event.severity) }}>
+                        [{event.severity}]
+                      </span>
+                      <span className="event-source">{event.source}</span>
+                      <span className="event-message">{event.message || event.event_type}</span>
+                    </div>
+                  ))}
+                  {!events.length ? <div className="empty-state">Waiting for backend events.</div> : null}
+                </div>
+              </Panel>
+
+              <Panel title="Top risk evidence" subtitle="Highest risk items across all loaded cases" icon={ShieldAlert}>
+                <div className="stack-tight">
+                  {highRiskEvidence.map((item) => (
+                    <div className="risk-item" key={item.id}>
+                      <div className="risk-icon">
+                        <ShieldAlert size={16} />
+                      </div>
+                      <div className="risk-body">
+                        <div className="risk-title">{item.filename}</div>
+                        <div className="risk-sub">
+                          {item.file_type} · {item.id.slice(0, 8)} · {relativeTime(item.created_at)}
+                        </div>
+                      </div>
+                      <div className="risk-score" style={{ color: riskColor(item.risk_level) }}>
+                        {item.risk_level}
+                      </div>
+                    </div>
+                  ))}
+                  {!highRiskEvidence.length ? <div className="empty-state">No evidence loaded yet.</div> : null}
+                </div>
+              </Panel>
+            </div>
+
+            <div className="grid-three">
+              <Panel title="Recent alerts" subtitle="Derived from real event severities" icon={AlertTriangle}>
+                <div className="stack-tight">
+                  {filteredEvents
+                    .filter((item) => item.severity === "CRITICAL" || item.severity === "HIGH")
+                    .slice(0, 5)
+                    .map((item) => (
+                      <div className="alert-card" key={item.id}>
+                        <TriangleAlert size={14} className="alert-icon" />
+                        <div className="alert-content">
+                          <div className="alert-title" style={{ color: severityColor(item.severity) }}>
+                            {item.event_type}
+                          </div>
+                          <div className="alert-sub">
+                            {item.source} · {relativeTime(item.created_at)} · {item.message}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  {!filteredEvents.filter((item) => item.severity === "CRITICAL" || item.severity === "HIGH").length ? (
+                    <div className="empty-state">No current high-severity alerts.</div>
+                  ) : null}
+                </div>
+              </Panel>
+
+              <Panel title="Selected evidence" subtitle="Backend state for the current item" icon={FileScan}>
+                {selectedEvidence ? (
+                  <div className="detail-list">
+                    <div className="detail-row">
+                      <span>File</span>
+                      <strong>{selectedEvidence.filename}</strong>
+                    </div>
+                    <div className="detail-row">
+                      <span>Type</span>
+                      <strong>{selectedEvidence.file_type}</strong>
+                    </div>
+                    <div className="detail-row">
+                      <span>Status</span>
+                      <strong>{selectedEvidence.status}</strong>
+                    </div>
+                    <div className="detail-row">
+                      <span>Risk</span>
+                      <strong style={{ color: riskColor(selectedEvidence.risk_level) }}>{selectedEvidence.risk_level}</strong>
+                    </div>
+                    <div className="detail-row">
+                      <span>Trust</span>
+                      <strong>{selectedEvidence.trust_score.toFixed(1)}%</strong>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="empty-state">Select a case and evidence item.</div>
+                )}
+              </Panel>
+
+              <Panel title="Chain-of-custody" subtitle="Latest audit trail entries" icon={Clock3}>
+                <div className="timeline">
+                  {timeline.slice(0, 5).map((item) => (
+                    <div className="timeline-item" key={item.id}>
+                      <div className="timeline-dot" />
+                      <div className="timeline-time">{formatDate(item.timestamp)}</div>
+                      <div className="timeline-title">{item.operation}</div>
+                      <div className="timeline-sub">{item.actor}</div>
+                    </div>
+                  ))}
+                  {!timeline.length ? <div className="empty-state">Audit logs appear after analysis or upload.</div> : null}
+                </div>
+              </Panel>
+            </div>
+          </div>
+        ) : null}
+
+        {selectedTab === "events" ? (
+          <Panel
+            title="Event stream"
+            subtitle="Search, filter, and inspect real backend activity"
+            icon={TerminalSquare}
+            actions={
+              <button className="btn ghost small" type="button" onClick={() => void loadEvents()}>
+                <RefreshCw size={13} />
+                Sync
+              </button>
+            }
+          >
+            <div className="filter-row">
+              <label className="inline-field grow">
+                <span>Search</span>
+                <input className="input" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Filter events" />
+              </label>
+              <label className="inline-field">
+                <span>Severity</span>
+                <select className="input" value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value as Severity | "ALL")}>
+                  <option value="ALL">All severities</option>
+                  <option value="INFO">INFO</option>
+                  <option value="LOW">LOW</option>
+                  <option value="WARNING">WARNING</option>
+                  <option value="HIGH">HIGH</option>
+                  <option value="CRITICAL">CRITICAL</option>
+                </select>
+              </label>
+              <label className="inline-field">
+                <span>Source</span>
+                <select className="input" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
+                  {eventSources.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="event-stream tall">
+              {filteredEvents.map((event) => (
+                <div className="event-row" key={event.id}>
+                  <span className="event-time">{new Date(event.created_at).toLocaleTimeString()}</span>
+                  <span className="event-severity" style={{ color: severityColor(event.severity) }}>
+                    [{event.severity}]
+                  </span>
+                  <span className="event-source">{event.source}</span>
+                  <span className="event-message">
+                    {event.message}
+                    {event.evidence_id ? <span className="mono-muted"> · {event.evidence_id}</span> : null}
+                  </span>
+                </div>
+              ))}
+              {!filteredEvents.length ? <div className="empty-state">No events match the current filters.</div> : null}
+            </div>
+          </Panel>
+        ) : null}
+
+        {selectedTab === "threats" ? (
+          <div className="grid-two">
+            <Panel title="Threat intelligence" subtitle="Actual risk-ranked evidence from backend data" icon={Radar}>
+              <div className="stack-tight">
+                {highRiskEvidence.map((item) => (
+                  <div className="risk-item" key={item.id}>
+                    <div className="risk-icon">
+                      <Radar size={16} />
+                    </div>
+                    <div className="risk-body">
+                      <div className="risk-title">{item.filename}</div>
+                      <div className="risk-sub">
+                        Case {item.case_id} · {item.file_type} · {formatBytes(item.size_bytes)}
+                      </div>
+                    </div>
+                    <div className="risk-score" style={{ color: riskColor(item.risk_level) }}>
+                      {item.trust_score.toFixed(1)}%
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+            <Panel title="Detection notes" subtitle="Backend-derived signals, not fabricated labels" icon={Shield}>
+              <div className="note-block">
+                <p>
+                  This view only reflects backend evidence, risk levels, trust scores, audit logs, and analysis bundles.
+                  If an analysis result is present for the selected evidence, it will appear here.
+                </p>
+              </div>
+              {analysis?.forensics_summary ? (
+                <div className="json-card">{JSON.stringify(analysis.forensics_summary, null, 2)}</div>
+              ) : (
+                <div className="empty-state">Run analysis on a selected evidence item to populate forensic findings.</div>
+              )}
+            </Panel>
+          </div>
+        ) : null}
+
+        {selectedTab === "cases" ? (
+          <div className="grid-two">
+            <Panel title="Investigations" subtitle="Live case registry from the backend" icon={FolderOpen}>
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Case</th>
+                      <th>Title</th>
+                      <th>Status</th>
+                      <th>Evidence</th>
+                      <th>Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cases.map((item) => {
+                      const itemEvidence = caseEvidence[item.id] ?? [];
+                      return (
+                        <tr key={item.id} onClick={() => setSelectedCaseId(item.id)} className={selectedCaseId === item.id ? "selected" : ""}>
+                          <td className="mono">{item.case_number}</td>
+                          <td>{item.title}</td>
+                          <td>{titleCase(item.status ?? "active")}</td>
+                          <td>{itemEvidence.length}</td>
+                          <td>{relativeTime(item.updated_at ?? item.created_at)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+
+            <Panel title="Case evidence" subtitle="Select a case to inspect all uploaded files" icon={FileText}>
+              <div className="stack-tight">
+                {(selectedCaseId ? caseEvidence[selectedCaseId] ?? [] : []).map((item) => (
+                  <button
+                    type="button"
+                    key={item.id}
+                    className={`evidence-card ${selectedEvidenceId === item.id ? "selected" : ""}`}
+                    onClick={() => setSelectedEvidenceId(item.id)}
+                  >
+                    <div className="evidence-left">
+                      <div className="evidence-title">{item.filename}</div>
+                      <div className="evidence-sub">
+                        {item.file_type} · {formatBytes(item.size_bytes)} · {relativeTime(item.created_at)}
+                      </div>
+                    </div>
+                    <div className="evidence-right">
+                      <span className="pill tiny" style={{ color: riskColor(item.risk_level), borderColor: riskColor(item.risk_level) }}>
+                        {item.risk_level}
+                      </span>
+                      <span className="mono">{item.id.slice(0, 10)}</span>
+                    </div>
+                  </button>
+                ))}
+                {!selectedCaseId || !(caseEvidence[selectedCaseId] ?? []).length ? <div className="empty-state">No evidence loaded for the selected case.</div> : null}
+              </div>
+            </Panel>
+          </div>
+        ) : null}
+
+        {selectedTab === "deepfake" ? (
+          <div className="grid-two">
+            <Panel
+              title="Deepfake analysis"
+              subtitle="Live backend results for the selected evidence"
+              icon={Bot}
+              actions={selectedEvidenceId ? <button className="btn ghost small" type="button" onClick={() => void handleAnalyze(selectedEvidenceId)}><RefreshCw size={13} /> Re-run analysis</button> : null}
+            >
+              {analysis?.deepfake_assessment ? (
+                <div className="detail-list">
+                  {keyValuePairs(analysis.deepfake_assessment).map(([key, value]) => (
+                    <div className="detail-row" key={key}>
+                      <span>{titleCase(key)}</span>
+                      <strong>{compact(value)}</strong>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">No deepfake assessment is available for the current evidence.</div>
+              )}
+            </Panel>
+
+            <Panel title="Forensics summary" subtitle="Actual backend findings and audit trail" icon={Fingerprint}>
+              {analysis?.forensics_summary ? (
+                <div className="json-card">{JSON.stringify(analysis.forensics_summary, null, 2)}</div>
+              ) : (
+                <div className="empty-state">Run analysis to populate forensic findings.</div>
+              )}
+              {analysis?.audit_logs?.length ? (
+                <div className="stack-tight mt">
+                  {analysis.audit_logs.slice(0, 4).map((item) => (
+                    <div className="timeline-item compact" key={item.id}>
+                      <div className="timeline-dot" />
+                      <div className="timeline-title">{item.operation}</div>
+                      <div className="timeline-sub">{item.result}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </Panel>
+          </div>
+        ) : null}
+
+        {selectedTab === "mitre" ? (
+          <Panel title="MITRE ATT&CK" subtitle="Backend-derived signals and observations only" icon={ShieldAlert}>
+            {analysis ? (
+              <div className="grid-three">
+                <div className="signal-column">
+                  <div className="signal-title">Trust assessment</div>
+                  <div className="json-card">{JSON.stringify(analysis.trust_assessment ?? {}, null, 2)}</div>
+                </div>
+                <div className="signal-column">
+                  <div className="signal-title">Forensic evidence</div>
+                  <div className="json-card">{JSON.stringify(analysis.forensics_summary ?? {}, null, 2)}</div>
+                </div>
+                <div className="signal-column">
+                  <div className="signal-title">Provenance notes</div>
+                  <div className="json-card">{JSON.stringify(analysis.provenance_assessment ?? {}, null, 2)}</div>
+                </div>
+              </div>
+            ) : (
+              <div className="empty-state">Select an evidence item and run analysis to see real backend signals here.</div>
+            )}
+          </Panel>
+        ) : null}
+
+        {selectedTab === "blockchain" ? (
+          <div className="grid-two">
+            <Panel
+              title="Blockchain verification"
+              subtitle="Ledger state for the selected evidence"
+              icon={Link2}
+              actions={
+                selectedEvidenceId ? (
+                  <div className="inline-actions">
+                    <button className="btn ghost small" type="button" onClick={() => void handleVerifyLedger(selectedEvidenceId)}>
+                      <ShieldCheck size={13} />
+                      Verify ledger
+                    </button>
+                    <button className="btn ghost small" type="button" onClick={() => void handleRegisterBlockchain(selectedEvidenceId)}>
+                      <Link2 size={13} />
+                      Register
+                    </button>
+                  </div>
+                ) : null
+              }
+            >
+              {analysis?.blockchain ? (
+                <div className="detail-list">
+                  {keyValuePairs(analysis.blockchain).map(([key, value]) => (
+                    <div className="detail-row" key={key}>
+                      <span>{titleCase(key)}</span>
+                      <strong>{compact(value)}</strong>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">No blockchain record is available for the selected evidence.</div>
+              )}
+            </Panel>
+
+            <Panel title="Evidence actions" subtitle="All GUI actions hit the backend directly" icon={LockKeyhole}>
+              <div className="action-stack">
+                <button className="btn primary" type="button" disabled={!selectedEvidenceId || busyAction !== null} onClick={() => selectedEvidenceId && void handleAnalyze(selectedEvidenceId)}>
+                  <Brain size={16} />
+                  Analyze evidence
+                </button>
+                <button className="btn ghost" type="button" disabled={!selectedEvidenceId || busyAction !== null} onClick={() => selectedEvidenceId && void handleVerifyProvenance(selectedEvidenceId)}>
+                  <Fingerprint size={16} />
+                  Verify provenance
+                </button>
+                <button className="btn ghost" type="button" disabled={!selectedEvidenceId || busyAction !== null} onClick={() => selectedEvidenceId && void handleRegisterBlockchain(selectedEvidenceId)}>
+                  <Link2 size={16} />
+                  Register on blockchain
+                </button>
+                <button className="btn ghost" type="button" disabled={!selectedEvidenceId || busyAction !== null} onClick={() => selectedEvidenceId && void handleTrustRefresh(selectedEvidenceId)}>
+                  <ShieldHalf size={16} />
+                  Refresh trust score
+                </button>
+                <button className="btn ghost" type="button" disabled={!selectedEvidenceId || busyAction !== null} onClick={() => selectedEvidenceId && void handleReportDownload(selectedEvidenceId)}>
+                  <Download size={16} />
+                  Download report
+                </button>
+              </div>
+            </Panel>
+          </div>
+        ) : null}
+
+        {selectedTab === "trust" ? (
+          <div className="grid-two">
+            <Panel title="Trust intelligence" subtitle="Backend-generated trust score and reasoning" icon={ShieldHalf}>
+              {analysis?.trust_assessment ? (
+                <div className="detail-list">
+                  {keyValuePairs(analysis.trust_assessment).map(([key, value]) => (
+                    <div className="detail-row" key={key}>
+                      <span>{titleCase(key)}</span>
+                      <strong>{compact(value)}</strong>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">Trust assessment appears after analysis or trust refresh.</div>
+              )}
+            </Panel>
+            <Panel title="Component breakdown" subtitle="What the trust engine reported" icon={Database}>
+              {analysis?.trust_assessment?.component_breakdown && typeof analysis.trust_assessment.component_breakdown === "object" ? (
+                <div className="json-card">{JSON.stringify(analysis.trust_assessment.component_breakdown, null, 2)}</div>
+              ) : (
+                <div className="empty-state">No component breakdown is available for the selected evidence.</div>
+              )}
+            </Panel>
+          </div>
+        ) : null}
+
+        {selectedTab === "alerts" ? (
+          <Panel title="Alert center" subtitle="Real event-driven alerts only" icon={AlertTriangle}>
+            <div className="stack-tight">
+              {filteredEvents
+                .filter((item) => item.severity === "CRITICAL" || item.severity === "HIGH" || (item.evidence_id && item.evidence_id === selectedEvidenceId))
+                .slice(0, 12)
+                .map((item) => (
+                  <div className="alert-card" key={item.id}>
+                    <ShieldAlert size={16} style={{ color: severityColor(item.severity) }} />
+                    <div className="alert-content">
+                      <div className="alert-title">{item.event_type}</div>
+                      <div className="alert-sub">
+                        {item.source} · {relativeTime(item.created_at)} · {item.message}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              {!filteredEvents.filter((item) => item.severity === "CRITICAL" || item.severity === "HIGH" || (item.evidence_id && item.evidence_id === selectedEvidenceId)).length ? (
+                <div className="empty-state">No active alerts from the backend.</div>
+              ) : null}
+            </div>
+          </Panel>
+        ) : null}
+
+        {selectedTab === "services" ? (
+          <Panel title="Service health" subtitle="Actual measured latency from recent API calls" icon={Server}>
+            <div className="health-grid wide">
+              {(["auth", "cases", "evidence", "events", "analysis", "provenance", "blockchain", "report"] as ServiceName[]).map((key) => {
+                const item = serviceHealth[key];
+                return (
+                  <div className="health-card" key={key}>
+                    <div className="health-name">{item.name}</div>
+                    <div className="health-row">
+                      <span className="dot" style={{ background: serviceCardTone(item.status) }} />
+                      <span>{titleCase(item.status)}</span>
+                    </div>
+                    <div className="health-metrics">
+                      <span>Latency</span>
+                      <strong>{item.latencyMs ? `${Math.round(item.latencyMs)} ms` : "N/A"}</strong>
+                    </div>
+                    {item.detail ? <div className="health-detail">{item.detail}</div> : null}
+                  </div>
+                );
+              })}
+            </div>
+          </Panel>
+        ) : null}
+
+        {selectedTab === "provenance" ? (
+          <div className="grid-two">
+            <Panel
+              title="Provenance"
+              subtitle="Actual C2PA and provenance state for the selected evidence"
+              icon={Fingerprint}
+              actions={
+                selectedEvidenceId ? (
+                  <button className="btn ghost small" type="button" onClick={() => void handleVerifyProvenance(selectedEvidenceId)}>
+                    <RefreshCw size={13} />
+                    Refresh provenance
+                  </button>
+                ) : null
+              }
+            >
+              {analysis?.provenance_assessment ? (
+                <div className="detail-list">
+                  {keyValuePairs(analysis.provenance_assessment).map(([key, value]) => (
+                    <div className="detail-row" key={key}>
+                      <span>{titleCase(key)}</span>
+                      <strong>{compact(value)}</strong>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">No provenance assessment is available for the selected evidence.</div>
+              )}
+            </Panel>
+
+            <Panel title="Chain of custody timeline" subtitle="Audit logs and backend events" icon={Clock3}>
+              <div className="timeline">
+                {(analysis?.audit_logs ?? timeline).slice(0, 10).map((item) => (
+                  <div className="timeline-item" key={item.id}>
+                    <div className="timeline-dot" />
+                    <div className="timeline-time">{formatDate(item.timestamp)}</div>
+                    <div className="timeline-title">{item.operation}</div>
+                    <div className="timeline-sub">
+                      {item.actor} · {item.result}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          </div>
+        ) : null}
+      </main>
+    </div>
+  );
+}
