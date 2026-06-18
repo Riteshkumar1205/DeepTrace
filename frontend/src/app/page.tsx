@@ -406,73 +406,6 @@ export default function Page() {
     }
   }, [authToken, authEmail, sessionId]);
 
-  useEffect(() => {
-    if (!authToken) {
-      setCases([]);
-      setCaseEvidence({});
-      setSelectedCaseId(null);
-      setSelectedEvidenceId(null);
-      setAnalysis(null);
-      setTimeline([]);
-      return;
-    }
-
-    void loadAllDashboardData();
-    const timer = window.setInterval(() => {
-      void loadEvents();
-    }, 15000);
-    return () => window.clearInterval(timer);
-  }, [authToken]);
-
-  useEffect(() => {
-    if (!authToken) return;
-    const currentCaseEvidence = selectedCaseId ? caseEvidence[selectedCaseId] ?? [] : [];
-    if (!currentCaseEvidence.length) {
-      setSelectedEvidenceId(null);
-      return;
-    }
-    if (!selectedEvidenceId || !currentCaseEvidence.some((item) => item.id === selectedEvidenceId)) {
-      setSelectedEvidenceId(currentCaseEvidence[0].id);
-    }
-  }, [authToken, selectedCaseId, caseEvidence, selectedEvidenceId]);
-
-  useEffect(() => {
-    if (!authToken || !selectedEvidenceId) return;
-    void loadEvidenceDetails(selectedEvidenceId);
-  }, [authToken, selectedEvidenceId]);
-
-  useEffect(() => {
-    if (!authToken) return;
-    let closed = false;
-    const source = new EventSource(`${apiPath("/events/stream")}?token=${encodeURIComponent(authToken)}`);
-    source.onmessage = (event) => {
-      if (closed) return;
-      try {
-        const raw = JSON.parse(event.data) as Record<string, unknown>;
-        const normalized = normalizeEvent(raw);
-        setEvents((current) => {
-          if (current.some((item) => item.id === normalized.id)) return current;
-          return [normalized, ...current].slice(0, 250);
-        });
-        if (normalized.event_type.toUpperCase().includes("CASE") || normalized.event_type.toUpperCase().includes("UPLOAD") || normalized.event_type.toUpperCase().includes("ANALYZE")) {
-          void loadCasesAndEvidence();
-        }
-        if (normalized.evidence_id && normalized.evidence_id === selectedEvidenceRef.current) {
-          void loadEvidenceDetails(normalized.evidence_id);
-        }
-      } catch {
-        // Ignore malformed stream items and keep the live connection alive.
-      }
-    };
-    source.onerror = () => {
-      source.close();
-    };
-    return () => {
-      closed = true;
-      source.close();
-    };
-  }, [authToken]);
-
   const selectedEvidence = selectedCaseId ? (caseEvidence[selectedCaseId] ?? []).find((item) => item.id === selectedEvidenceId) ?? null : null;
   const trustScoreBase = safeNumber(analysis?.trust_assessment?.trust_score ?? analysis?.evidence?.trust_score, 0);
 
@@ -660,6 +593,73 @@ export default function Page() {
       }
     }
   }, [loadCasesAndEvidence, loadEvents]);
+
+  useEffect(() => {
+    if (!authToken) {
+      setCases([]);
+      setCaseEvidence({});
+      setSelectedCaseId(null);
+      setSelectedEvidenceId(null);
+      setAnalysis(null);
+      setTimeline([]);
+      return;
+    }
+
+    void loadAllDashboardData();
+    const timer = window.setInterval(() => {
+      void loadEvents();
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [authToken, loadAllDashboardData, loadEvents]);
+
+  useEffect(() => {
+    if (!authToken) return;
+    const currentCaseEvidence = selectedCaseId ? caseEvidence[selectedCaseId] ?? [] : [];
+    if (!currentCaseEvidence.length) {
+      setSelectedEvidenceId(null);
+      return;
+    }
+    if (!selectedEvidenceId || !currentCaseEvidence.some((item) => item.id === selectedEvidenceId)) {
+      setSelectedEvidenceId(currentCaseEvidence[0].id);
+    }
+  }, [authToken, selectedCaseId, caseEvidence, selectedEvidenceId, loadEvidenceDetails]);
+
+  useEffect(() => {
+    if (!authToken || !selectedEvidenceId) return;
+    void loadEvidenceDetails(selectedEvidenceId);
+  }, [authToken, selectedEvidenceId, loadEvidenceDetails]);
+
+  useEffect(() => {
+    if (!authToken) return;
+    let closed = false;
+    const source = new EventSource(`${apiPath("/events/stream")}?token=${encodeURIComponent(authToken)}`);
+    source.onmessage = (event) => {
+      if (closed) return;
+      try {
+        const raw = JSON.parse(event.data) as Record<string, unknown>;
+        const normalized = normalizeEvent(raw);
+        setEvents((current) => {
+          if (current.some((item) => item.id === normalized.id)) return current;
+          return [normalized, ...current].slice(0, 250);
+        });
+        if (normalized.event_type.toUpperCase().includes("CASE") || normalized.event_type.toUpperCase().includes("UPLOAD") || normalized.event_type.toUpperCase().includes("ANALYZE")) {
+          void loadCasesAndEvidence();
+        }
+        if (normalized.evidence_id && normalized.evidence_id === selectedEvidenceRef.current) {
+          void loadEvidenceDetails(normalized.evidence_id);
+        }
+      } catch {
+        // Ignore malformed stream items and keep the live connection alive.
+      }
+    };
+    source.onerror = () => {
+      source.close();
+    };
+    return () => {
+      closed = true;
+      source.close();
+    };
+  }, [authToken, loadCasesAndEvidence, loadEvidenceDetails]);
 
   async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
